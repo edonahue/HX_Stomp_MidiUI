@@ -647,20 +647,15 @@ class SoundboardApp(ctk.CTk):
     # Tuner
     # ------------------------------------------------------------------
 
-    def _tuner_on(self) -> bool:
-        return getattr(self, "_tuner_state", False)
-
     def _toggle_tuner(self) -> None:
         if not self._midi.is_connected:
             messagebox.showwarning("Not connected",
                                    "Connect via MIDI → Connect… first.")
             return
-        self._tuner_state = not self._tuner_on()
-        self._midi.set_tuner(self._tuner_state)
-        state_str = "ON" if self._tuner_state else "OFF"
+        active = self._midi.toggle_tuner()
         self._active_lbl.configure(
-            text=f"Tuner {state_str}",
-            text_color=_COL_DISC if self._tuner_state else _TEXT_DIM,
+            text=f"Tuner {'ON' if active else 'OFF'}",
+            text_color=_COL_DISC if active else _TEXT_DIM,
         )
 
     # ------------------------------------------------------------------

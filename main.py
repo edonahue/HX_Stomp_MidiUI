@@ -33,12 +33,14 @@ class MockHXStompMidi:
     """
     Drop-in replacement for HXStompMidi that prints MIDI messages to stdout
     instead of sending them to a real device.  Injected via --mock-midi.
+    Mirrors the full public API of HXStompMidi.
     """
 
     def __init__(self, port_name: str = None, channel: int = 0):
         self.channel = channel
         self._connected = False
         self._port_name = ""
+        self._tuner_active = False
         if port_name:
             self.connect(port_name)
 
@@ -55,11 +57,11 @@ class MockHXStompMidi:
     def connect(self, port_name: str) -> None:
         self._connected = True
         self._port_name = port_name
+        self._tuner_active = False
         print(f"[MockMIDI] Connected → {port_name}")
 
     def connect_first_available(self) -> str:
-        ports = self.list_output_ports()
-        self.connect(ports[0])
+        self.connect(self.list_output_ports()[0])
         return self._port_name
 
     def disconnect(self) -> None:
@@ -76,7 +78,11 @@ class MockHXStompMidi:
     def port_name(self) -> str:
         return self._port_name
 
-    # MIDI output ------------------------------------------------------
+    @property
+    def tuner_active(self) -> bool:
+        return self._tuner_active
+
+    # Low-level --------------------------------------------------------
 
     def send_cc(self, control: int, value: int) -> None:
         print(f"[MockMIDI] CC  ch={self.channel + 1}  cc={control}  val={value}")
@@ -84,24 +90,80 @@ class MockHXStompMidi:
     def send_program_change(self, program: int) -> None:
         print(f"[MockMIDI] PC  ch={self.channel + 1}  program={program}")
 
-    def select_preset(self, preset: int, bank_msb: int = 0,
-                      bank_lsb: int = 0) -> None:
+    # Preset / snapshot ------------------------------------------------
+
+    def select_preset(self, preset: int,
+                      bank_msb: int = 0, bank_lsb: int = 0) -> None:
         print(f"[MockMIDI] Preset → bank({bank_msb},{bank_lsb})  PC {preset}")
 
     def select_snapshot(self, snapshot: int) -> None:
-        print(f"[MockMIDI] Snapshot → {snapshot + 1}")
+        labels = {8: "next", 9: "previous"}
+        label = labels.get(snapshot, str(snapshot + 1))
+        print(f"[MockMIDI] Snapshot → {label}")
 
     def select_preset_and_snapshot(self, preset: int, snapshot: int = 0,
-                                    bank_msb: int = 0, bank_lsb: int = 0) -> None:
+                                   bank_msb: int = 0, bank_lsb: int = 0) -> None:
         self.select_preset(preset, bank_msb, bank_lsb)
         self.select_snapshot(snapshot)
 
-    def set_tuner(self, on: bool) -> None:
-        print(f"[MockMIDI] Tuner {'ON' if on else 'OFF'}")
+    def next_snapshot(self) -> None:
+        self.select_snapshot(8)
 
-    def set_effect_bypass(self, footswitch: int, bypassed: bool) -> None:
-        state = "bypass" if bypassed else "engage"
-        print(f"[MockMIDI] FS{footswitch} → {state}")
+    def prev_snapshot(self) -> None:
+        self.select_snapshot(9)
+
+    # Footswitches -----------------------------------------------------
+
+    def press_footswitch(self, fs: int) -> None:
+        print(f"[MockMIDI] FS{fs} press (toggle block)")
+
+    def release_footswitch(self, fs: int) -> None:
+        print(f"[MockMIDI] FS{fs} release")
+
+    # Expression pedals ------------------------------------------------
+
+    def set_exp1(self, value: int) -> None:
+        print(f"[MockMIDI] EXP1 → {value}")
+
+    def set_exp2(self, value: int) -> None:
+        print(f"[MockMIDI] EXP2 → {value}")
+
+    def set_exp_toe(self, engaged: bool) -> None:
+        print(f"[MockMIDI] EXP Toe → {'engaged' if engaged else 'released'}")
+
+    # Tap tempo --------------------------------------------------------
+
+    def tap_tempo(self) -> None:
+        print("[MockMIDI] Tap Tempo ♩")
+
+    # Tuner ------------------------------------------------------------
+
+    def toggle_tuner(self) -> bool:
+        self._tuner_active = not self._tuner_active
+        print(f"[MockMIDI] Tuner {'ON' if self._tuner_active else 'OFF'}")
+        return self._tuner_active
+
+    def set_tuner(self, on: bool) -> None:
+        if self._tuner_active != on:
+            self.toggle_tuner()
+
+    # Looper -----------------------------------------------------------
+
+    def looper_record(self) -> None:     print("[MockMIDI] Looper → Record")
+    def looper_overdub(self) -> None:    print("[MockMIDI] Looper → Overdub")
+    def looper_play(self) -> None:       print("[MockMIDI] Looper → Play")
+    def looper_stop(self) -> None:       print("[MockMIDI] Looper → Stop")
+    def looper_play_once(self) -> None:  print("[MockMIDI] Looper → Play Once")
+    def looper_undo_redo(self) -> None:  print("[MockMIDI] Looper → Undo/Redo")
+
+    def looper_reverse(self, on: bool) -> None:
+        print(f"[MockMIDI] Looper Reverse → {'ON' if on else 'OFF'}")
+
+    def looper_half_speed(self, on: bool) -> None:
+        print(f"[MockMIDI] Looper Half Speed → {'ON' if on else 'OFF'}")
+
+    def looper_enabled(self, on: bool) -> None:
+        print(f"[MockMIDI] Looper Block → {'ON' if on else 'OFF'}")
 
     def __enter__(self):  return self
     def __exit__(self, *_): self.disconnect()
