@@ -13,12 +13,14 @@ Layout
 
 from __future__ import annotations
 
+import time
 import tkinter as tk
 from tkinter import colorchooser, messagebox
 from typing import Optional
 
 import customtkinter as ctk
 
+from llm_generator import GenerateToneDialog
 from midi_interface import HXStompMidi
 from tone_manager import Tone, ToneManager
 
@@ -241,12 +243,245 @@ class ToneDialog(ctk.CTkToplevel):
 
 
 # ---------------------------------------------------------------------------
+# LiveControlPanel
+# ---------------------------------------------------------------------------
+
+class LiveControlPanel(ctk.CTkFrame):
+    """
+    Collapsible panel for live MIDI performance controls.
+    Three sections: snapshot navigation, tap tempo, and looper transport.
+    """
+
+    _COL_RECORD  = "#e74c3c"
+    _COL_PLAY    = "#2ecc71"
+    _COL_OVERDUB = "#e67e22"
+
+    def __init__(self, parent, midi, status_fn):
+        super().__init__(parent, fg_color="#252525", corner_radius=0)
+        self._midi       = midi
+        self._status_fn  = status_fn
+        self._tap_times: list[float] = []
+        self._looper_state = {
+            "recording": False, "playing": False, "overdubbing": False,
+            "reverse": False, "half_speed": False,
+        }
+        self._build()
+
+    # ------------------------------------------------------------------
+    # Layout helpers
+    # ------------------------------------------------------------------
+
+    def _section(self, parent, title: str) -> ctk.CTkFrame:
+        """Create a labeled section packed left; returns the inner button frame."""
+        outer = ctk.CTkFrame(parent, fg_color="transparent")
+        outer.pack(side="left", padx=8, pady=4)
+        ctk.CTkLabel(
+            outer, text=title,
+            font=ctk.CTkFont(family="Helvetica", size=9, weight="bold"),
+            text_color=_TEXT_DIM,
+        ).pack(anchor="w", pady=(2, 0))
+        inner = ctk.CTkFrame(outer, fg_color="transparent")
+        inner.pack(fill="x")
+        return inner
+
+    def _vdivider(self, parent) -> None:
+        ctk.CTkFrame(parent, width=1, fg_color="#3a3a3a",
+                     corner_radius=0).pack(side="left", fill="y", padx=4, pady=8)
+
+    def _lbtn(self, parent, text: str, cmd,
+              width: int = 72) -> ctk.CTkButton:
+        btn = ctk.CTkButton(
+            parent, text=text, width=width,
+            fg_color="transparent", hover_color="#333333",
+            text_color=_TEXT_BRIGHT, height=26, corner_radius=5,
+            command=cmd,
+        )
+        btn.pack(side="left", padx=2, pady=2)
+        return btn
+
+    # ------------------------------------------------------------------
+    # Build
+    # ------------------------------------------------------------------
+
+    def _build(self) -> None:
+        # SNAPSHOTS
+        snap = self._section(self, "SNAPSHOTS")
+        self._lbtn(snap, "◀  Prev", self._prev_snapshot, width=80)
+        self._lbtn(snap, "Next  ▶", self._next_snapshot, width=80)
+
+        self._vdivider(self)
+
+        # TAP TEMPO
+        tap = self._section(self, "TAP TEMPO")
+        self._lbtn(tap, "⏱  Tap", self._tap, width=80)
+        self._bpm_lbl = ctk.CTkLabel(
+            tap, text="— BPM", width=72,
+            font=ctk.CTkFont(family="Helvetica", size=13, weight="bold"),
+            text_color=_TEXT_BRIGHT,
+        )
+        self._bpm_lbl.pack(side="left", padx=4)
+        self._lbtn(tap, "Reset", self._tap_reset, width=56)
+
+        self._vdivider(self)
+
+        # LOOPER
+        loop = self._section(self, "LOOPER")
+
+        row1 = ctk.CTkFrame(loop, fg_color="transparent")
+        row1.pack(fill="x")
+        self._rec_btn  = self._lbtn(row1, "⏺  Rec",   self._looper_record)
+        self._play_btn = self._lbtn(row1, "▶  Play",   self._looper_play)
+        self._stop_btn = self._lbtn(row1, "⏹  Stop",   self._looper_stop)
+        self._undo_btn = self._lbtn(row1, "↩  Undo",   self._looper_undo)
+
+        row2 = ctk.CTkFrame(loop, fg_color="transparent")
+        row2.pack(fill="x")
+        self._od_btn   = self._lbtn(row2, "⟳  OD",    self._looper_overdub)
+        self._once_btn = self._lbtn(row2, "⊙  Once",  self._looper_once)
+        self._rev_btn  = self._lbtn(row2, "↔  Rev",   self._looper_reverse)
+        self._half_btn = self._lbtn(row2, "½  ½Spd",  self._looper_half)
+
+    # ------------------------------------------------------------------
+    # Connection guard
+    # ------------------------------------------------------------------
+
+    def _guard(self) -> bool:
+        if not self._midi.is_connected:
+            self._status_fn("Not connected — use MIDI → Connect… first")
+            return False
+        return True
+
+    # ------------------------------------------------------------------
+    # Snapshot controls
+    # ------------------------------------------------------------------
+
+    def _prev_snapshot(self) -> None:
+        if self._guard():
+            self._midi.prev_snapshot()
+
+    def _next_snapshot(self) -> None:
+        if self._guard():
+            self._midi.next_snapshot()
+
+    # ------------------------------------------------------------------
+    # Tap Tempo
+    # ------------------------------------------------------------------
+
+    def _tap(self) -> None:
+        now = time.perf_counter()
+        if self._tap_times and (now - self._tap_times[-1]) > 4.0:
+            self._tap_times.clear()
+        self._tap_times.append(now)
+        if len(self._tap_times) > 8:
+            self._tap_times = self._tap_times[-8:]
+
+        if self._guard():
+            self._midi.tap_tempo()
+
+        if len(self._tap_times) >= 2:
+            intervals = [
+                self._tap_times[i + 1] - self._tap_times[i]
+                for i in range(len(self._tap_times) - 1)
+            ]
+            bpm = round(60.0 / (sum(intervals) / len(intervals)))
+            self._bpm_lbl.configure(text=f"{bpm} BPM")
+        else:
+            self._bpm_lbl.configure(text="— BPM")
+
+    def _tap_reset(self) -> None:
+        self._tap_times.clear()
+        self._bpm_lbl.configure(text="— BPM")
+
+    # ------------------------------------------------------------------
+    # Looper controls
+    # ------------------------------------------------------------------
+
+    def _looper_record(self) -> None:
+        if not self._guard():
+            return
+        s = self._looper_state
+        s["recording"]   = not s["recording"]
+        s["overdubbing"] = False
+        if s["recording"]:
+            s["playing"] = False
+        self._midi.looper_record()
+        self._refresh_looper_btns()
+
+    def _looper_play(self) -> None:
+        if not self._guard():
+            return
+        s = self._looper_state
+        s["playing"]     = True
+        s["recording"]   = False
+        s["overdubbing"] = False
+        self._midi.looper_play()
+        self._refresh_looper_btns()
+
+    def _looper_stop(self) -> None:
+        if not self._guard():
+            return
+        s = self._looper_state
+        s["playing"]     = False
+        s["recording"]   = False
+        s["overdubbing"] = False
+        self._midi.looper_stop()
+        self._refresh_looper_btns()
+
+    def _looper_undo(self) -> None:
+        if self._guard():
+            self._midi.looper_undo_redo()
+
+    def _looper_overdub(self) -> None:
+        if not self._guard():
+            return
+        s = self._looper_state
+        s["overdubbing"] = not s["overdubbing"]
+        s["recording"]   = False
+        self._midi.looper_overdub()
+        self._refresh_looper_btns()
+
+    def _looper_once(self) -> None:
+        if self._guard():
+            self._midi.looper_play_once()
+
+    def _looper_reverse(self) -> None:
+        if not self._guard():
+            return
+        on = not self._looper_state["reverse"]
+        self._looper_state["reverse"] = on
+        self._midi.looper_reverse(on)
+        self._refresh_looper_btns()
+
+    def _looper_half(self) -> None:
+        if not self._guard():
+            return
+        on = not self._looper_state["half_speed"]
+        self._looper_state["half_speed"] = on
+        self._midi.looper_half_speed(on)
+        self._refresh_looper_btns()
+
+    def _refresh_looper_btns(self) -> None:
+        s = self._looper_state
+        self._rec_btn.configure(
+            fg_color=self._COL_RECORD  if s["recording"]   else "transparent")
+        self._play_btn.configure(
+            fg_color=self._COL_PLAY    if s["playing"]     else "transparent")
+        self._od_btn.configure(
+            fg_color=self._COL_OVERDUB if s["overdubbing"] else "transparent")
+        self._rev_btn.configure(
+            fg_color=_ACCENT           if s["reverse"]     else "transparent")
+        self._half_btn.configure(
+            fg_color=_ACCENT           if s["half_speed"]  else "transparent")
+
+
+# ---------------------------------------------------------------------------
 # Main soundboard window
 # ---------------------------------------------------------------------------
 
 class SoundboardApp(ctk.CTk):
 
-    def __init__(self, presets_file: str = "presets.json"):
+    def __init__(self, presets_file: str = "presets.json",
+                 no_llm: bool = False):
         super().__init__()
         self.title("HX Stomp Soundboard")
         self.minsize(600, 480)
@@ -256,6 +491,9 @@ class SoundboardApp(ctk.CTk):
         self._active: Optional[str] = None
         self._cols   = 4
         self._card_frames: dict[str, ctk.CTkFrame] = {}  # name → wrapper frame
+        self._no_llm        = no_llm
+        self._live_visible  = False
+        self._live_view_var = tk.BooleanVar(value=False)
 
         self._build_ui()
         self._render_tones()
@@ -268,6 +506,7 @@ class SoundboardApp(ctk.CTk):
     def _build_ui(self) -> None:
         self._build_menu()
         self._build_toolbar()
+        self._build_live_panel()
         self._build_grid()
         self._build_statusbar()
 
@@ -318,10 +557,22 @@ class SoundboardApp(ctk.CTk):
         tones_menu = tk.Menu(menubar, tearoff=0,
                              bg="#2b2b2b", fg=_TEXT_BRIGHT,
                              activebackground=_ACCENT, activeforeground="#ffffff")
+        tones_menu.add_command(label="✨  Generate Tone…", command=self._generate_tone)
+        tones_menu.add_separator()
         tones_menu.add_command(label="⊕  Add Tone",     command=self._add_tone)
         tones_menu.add_command(label="✏  Edit Selected", command=self._edit_tone)
         tones_menu.add_command(label="🗑  Remove Selected", command=self._remove_tone)
         menubar.add_cascade(label="Tones", menu=tones_menu)
+
+        # View
+        view_menu = tk.Menu(menubar, tearoff=0,
+                            bg="#2b2b2b", fg=_TEXT_BRIGHT,
+                            activebackground=_ACCENT, activeforeground="#ffffff")
+        view_menu.add_checkbutton(
+            label="⚡  Live Controls",
+            variable=self._live_view_var,
+            command=self._toggle_live_panel)
+        menubar.add_cascade(label="View", menu=view_menu)
 
         self.configure(menu=menubar)
 
@@ -357,6 +608,20 @@ class SoundboardApp(ctk.CTk):
         ctk.CTkButton(toolbar, text="↺  Reload", width=90,
                       command=self._reload,      **btn_opts).pack(
             side="left", padx=2,      pady=6)
+
+        # Thin separator
+        ctk.CTkFrame(toolbar, width=1, fg_color="#3a3a3a",
+                     corner_radius=0).pack(side="left", fill="y", padx=8, pady=8)
+
+        ctk.CTkButton(toolbar, text="✨  Generate", width=110,
+                      command=self._generate_tone, **btn_opts).pack(
+            side="left", padx=2, pady=6)
+
+        # Live panel toggle — right-aligned
+        self._live_btn = ctk.CTkButton(
+            toolbar, text="⚡  Live", width=90,
+            command=self._toggle_live_panel, **btn_opts)
+        self._live_btn.pack(side="right", padx=(2, 8), pady=6)
 
     # ---- Tone grid ---------------------------------------------------
 
@@ -642,6 +907,48 @@ class SoundboardApp(ctk.CTk):
 
     def _save(self) -> None:
         self._tones.save()
+
+    # ------------------------------------------------------------------
+    # Live control panel
+    # ------------------------------------------------------------------
+
+    def _build_live_panel(self) -> None:
+        self._live_ctrl = LiveControlPanel(self, self._midi, self._show_status)
+
+    def _toggle_live_panel(self) -> None:
+        self._live_visible = not self._live_visible
+        self._live_view_var.set(self._live_visible)
+        if self._live_visible:
+            self._live_ctrl.pack(fill="x", side="top", before=self._scroll)
+        else:
+            self._live_ctrl.pack_forget()
+
+    def _show_status(self, text: str) -> None:
+        self._active_lbl.configure(text=text, text_color=_TEXT_DIM)
+
+    # ------------------------------------------------------------------
+    # LLM tone generation
+    # ------------------------------------------------------------------
+
+    def _generate_tone(self) -> None:
+        if self._no_llm:
+            messagebox.showinfo(
+                "LLM Disabled",
+                "AI tone generation is disabled.\n"
+                "Restart without --no-llm to enable it.")
+            return
+        GenerateToneDialog(self, on_tone_generated=self._on_tone_generated)
+
+    def _on_tone_generated(self, tone: Tone) -> None:
+        dlg = ToneDialog(self, title="Add Generated Tone", tone=tone)
+        self.wait_window(dlg)
+        if dlg.result:
+            try:
+                self._tones.add(dlg.result)
+                self._tones.save()
+                self._render_tones()
+            except ValueError as e:
+                messagebox.showerror("Error", str(e))
 
     # ------------------------------------------------------------------
     # Tuner

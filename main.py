@@ -187,6 +187,19 @@ def main() -> None:
         "--mock-midi", action="store_true",
         help="Use mock MIDI backend (no hardware needed; messages printed to stdout)",
     )
+    parser.add_argument(
+        "--no-llm", action="store_true",
+        help="Disable AI tone generation (✨ Generate button shows info dialog)",
+    )
+    parser.add_argument(
+        "--api-key", default=None,
+        help="API key for the configured LLM provider (saves to ~/.hxstomp/config.json)",
+    )
+    parser.add_argument(
+        "--llm-provider", default=None,
+        choices=["anthropic", "openai", "ollama", "gemini"],
+        help="Override LLM provider from config",
+    )
     args = parser.parse_args()
 
     if args.list_ports:
@@ -204,7 +217,17 @@ def main() -> None:
         soundboard_ui.HXStompMidi = MockHXStompMidi
         print("[MockMIDI] Mock MIDI backend active — no hardware required.")
 
-    app = SoundboardApp(presets_file=args.presets)
+    if args.api_key or args.llm_provider:
+        from llm_generator import load_config, save_config
+        cfg = load_config()
+        if args.llm_provider:
+            cfg["provider"] = args.llm_provider
+        if args.api_key:
+            provider = cfg.get("provider", "anthropic")
+            cfg[f"{provider}_api_key"] = args.api_key
+        save_config(cfg)
+
+    app = SoundboardApp(presets_file=args.presets, no_llm=args.no_llm)
     app.mainloop()
 
 

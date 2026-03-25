@@ -12,3 +12,7 @@
 mido>=1.3.0
 python-rtmidi>=1.5.0
 customtkinter>=5.2.0
+anthropic>=0.40.0           # required for Anthropic provider (default)
+# openai>=1.0.0             # optional — uncomment for OpenAI provider
+# google-generativeai>=0.8  # optional — uncomment for Gemini provider
+# (Ollama uses stdlib urllib — no extra dep)
