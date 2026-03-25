@@ -66,6 +66,16 @@ def _adjust_brightness(hex_color: str, factor: float = 0.80) -> str:
     return f"#{r:02x}{g:02x}{b:02x}"
 
 
+def _muted_color(fg: str, bg: str, alpha: float = 0.55) -> str:
+    """Blend `fg` toward `bg` to produce a muted variant for subtitle text."""
+    def ch(h: str, i: int) -> int:
+        return int(h.lstrip("#")[i:i + 2], 16)
+    r = int(ch(fg, 0) * alpha + ch(bg, 0) * (1 - alpha))
+    g = int(ch(fg, 2) * alpha + ch(bg, 2) * (1 - alpha))
+    b = int(ch(fg, 4) * alpha + ch(bg, 4) * (1 - alpha))
+    return f"#{r:02x}{g:02x}{b:02x}"
+
+
 # ---------------------------------------------------------------------------
 # ConnectDialog
 # ---------------------------------------------------------------------------
@@ -431,10 +441,13 @@ class SoundboardApp(ctk.CTk):
         ).pack(side="left", anchor="w")
 
     def _render_card(self, tone: Tone, row: int, col: int) -> None:
-        is_active = tone.name == self._active
+        is_active    = tone.name == self._active
         border_color = _ACCENT if is_active else "#1c1c1c"
+        fg           = _contrast_color(tone.color)
+        sub_fg       = _muted_color(fg, tone.color, alpha=0.55)
+        hover_color  = _adjust_brightness(tone.color)
 
-        # Wrapper frame provides the "active" border effect
+        # Wrapper provides the accent border when this card is active
         wrapper = ctk.CTkFrame(
             self._scroll,
             fg_color=border_color,
@@ -443,21 +456,49 @@ class SoundboardApp(ctk.CTk):
         wrapper.grid(row=row, column=col, padx=5, pady=5, sticky="nsew")
         self._card_frames[tone.name] = wrapper
 
-        btn = ctk.CTkButton(
+        # Card body — CTkFrame so name and subtitle can have independent fonts
+        card = ctk.CTkFrame(
             wrapper,
-            text=f"{tone.name}\nPC {tone.preset} · S{tone.snapshot + 1}",
             width=_CARD_W,
             height=_CARD_H,
             corner_radius=_CARD_RADIUS,
             fg_color=tone.color,
-            hover_color=_adjust_brightness(tone.color),
-            text_color=_contrast_color(tone.color),
-            font=ctk.CTkFont(family="Helvetica", size=13, weight="bold"),
-            command=lambda t=tone: self._activate_tone(t),
         )
-        btn.pack(padx=2, pady=2)
+        card.pack(padx=2, pady=2)
+        card.pack_propagate(False)
 
-        # Right-click context menu (inspired by MIDIControl)
+        # Tone name — large bold
+        name_lbl = ctk.CTkLabel(
+            card,
+            text=tone.name,
+            font=ctk.CTkFont(family="Helvetica", size=13, weight="bold"),
+            text_color=fg,
+            wraplength=_CARD_W - 16,
+            anchor="center",
+        )
+        name_lbl.pack(expand=True, pady=(12, 2))
+
+        # MIDI detail — small, muted
+        sub_lbl = ctk.CTkLabel(
+            card,
+            text=f"PC {tone.preset} · S{tone.snapshot + 1}",
+            font=ctk.CTkFont(family="Helvetica", size=9),
+            text_color=sub_fg,
+            anchor="center",
+        )
+        sub_lbl.pack(pady=(0, 10))
+
+        # Click + hover on all three surfaces
+        def on_click(e, t=tone):   self._activate_tone(t)
+        def on_enter(e):           card.configure(fg_color=hover_color)
+        def on_leave(e):           card.configure(fg_color=tone.color)
+
+        for w in (card, name_lbl, sub_lbl):
+            w.bind("<Button-1>", on_click)
+            w.bind("<Enter>",    on_enter)
+            w.bind("<Leave>",    on_leave)
+
+        # Right-click context menu
         ctx = tk.Menu(self, tearoff=0,
                       bg="#2b2b2b", fg=_TEXT_BRIGHT,
                       activebackground=_ACCENT, activeforeground="#ffffff")
@@ -465,13 +506,14 @@ class SoundboardApp(ctk.CTk):
         ctx.add_command(label="🗑  Remove", command=lambda t=tone: self._remove_tone(t))
 
         def show_ctx(event, menu=ctx, t=tone):
-            self._active = t.name  # select on right-click too
+            self._active = t.name
             try:
                 menu.tk_popup(event.x_root, event.y_root)
             finally:
                 menu.grab_release()
 
-        btn.bind("<Button-3>", show_ctx)
+        for w in (card, name_lbl, sub_lbl):
+            w.bind("<Button-3>", show_ctx)
 
     # ------------------------------------------------------------------
     # MIDI connection
