@@ -1,0 +1,13 @@
+# HX Stomp Soundboard dependencies
+#
+# mido     - Pure-Python MIDI library (message construction, port I/O)
+# python-rtmidi - Low-latency MIDI I/O backend used by mido
+#
+# Install:
+#   pip install -r requirements.txt
+#
+# On Linux you may also need:
+#   sudo apt install libasound2-dev libjack-dev   # for rtmidi to build
+
+mido>=1.3.0
+python-rtmidi>=1.5.0
