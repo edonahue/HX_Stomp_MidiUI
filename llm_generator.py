@@ -84,6 +84,7 @@ class LLMProvider(ABC):
     label: str          # e.g. "Anthropic (Claude)"
     requires_key: bool  # False for Ollama
     default_model: str
+    env_var: str = ""   # env variable checked for API key (empty = none needed)
 
     def __init__(self, api_key: str = "", model: str = "", base_url: str = ""):
         self.api_key  = api_key  or ""
@@ -100,6 +101,7 @@ class AnthropicProvider(LLMProvider):
     label         = "Anthropic (Claude)"
     requires_key  = True
     default_model = "claude-haiku-4-5"
+    env_var       = "ANTHROPIC_API_KEY"
 
     def complete(self, system: str, user: str) -> str:
         try:
@@ -131,6 +133,7 @@ class OpenAIProvider(LLMProvider):
     label         = "OpenAI (GPT)"
     requires_key  = True
     default_model = "gpt-4o-mini"
+    env_var       = "OPENAI_API_KEY"
 
     def complete(self, system: str, user: str) -> str:
         try:
@@ -196,6 +199,7 @@ class GeminiProvider(LLMProvider):
     label         = "Google Gemini"
     requires_key  = True
     default_model = "gemini-1.5-flash"
+    env_var       = "GOOGLE_API_KEY"
 
     def complete(self, system: str, user: str) -> str:
         try:
@@ -426,13 +430,27 @@ class GenerateToneDialog(ctk.CTkToplevel):
             command=self._configure_provider,
         ).pack(side="left")
 
+        # Active model readout — dim, updates on provider change / configure save
+        self._model_lbl = ctk.CTkLabel(
+            prov_frame, text="",
+            font=ctk.CTkFont(size=10), text_color=_TEXT_DIM, anchor="w")
+        self._model_lbl.pack(side="left", padx=(10, 0))
+
+        # Key warning — amber, shown only when key is absent for a cloud provider
+        self._key_warn_lbl = ctk.CTkLabel(
+            self, text="",
+            text_color="#e8a838",
+            font=ctk.CTkFont(size=11),
+            anchor="w", wraplength=400, justify="left")
+        # Not packed here — shown/hidden by _refresh_provider_ui()
+
         # Description label
         ctk.CTkLabel(self, text="Describe your tone:", anchor="w").pack(
             fill="x", padx=14, pady=(8, 2))
 
         # Multi-line text area
         txt_frame = ctk.CTkFrame(self, fg_color="#2b2b2b", corner_radius=6)
-        txt_frame.pack(fill="x", padx=14, pady=(0, 8))
+        txt_frame.pack(fill="x", padx=14, pady=(0, 4))
         self._text = tk.Text(
             txt_frame,
             height=4, width=46,
@@ -446,6 +464,16 @@ class GenerateToneDialog(ctk.CTkToplevel):
         self._text.pack(fill="x", padx=2, pady=2)
         self._text.focus_set()
 
+        # Hint — explains what the LLM generates vs what the user must supply
+        ctk.CTkLabel(
+            self,
+            text="AI suggests name, color, category, and snapshot.\n"
+                 "You'll set the preset number in the next step — it maps to your specific rig.",
+            font=ctk.CTkFont(size=10),
+            text_color=_TEXT_DIM,
+            anchor="w", justify="left",
+        ).pack(fill="x", padx=14, pady=(2, 6))
+
         # Progress bar (created but not packed; shown during loading)
         self._progress = ctk.CTkProgressBar(self, mode="indeterminate")
 
@@ -458,6 +486,9 @@ class GenerateToneDialog(ctk.CTkToplevel):
         # Buttons
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
         btn_frame.pack(pady=(4, 14))
+
+        # Initialise both dynamic labels
+        self._refresh_provider_ui()
         self._gen_btn = ctk.CTkButton(
             btn_frame, text="✨  Generate", width=120,
             command=self._start_generate)
@@ -472,15 +503,43 @@ class GenerateToneDialog(ctk.CTkToplevel):
     # Callbacks
     # ------------------------------------------------------------------
 
+    def _refresh_provider_ui(self) -> None:
+        """Update the model label and key warning to reflect the current provider."""
+        name = self._label_to_name(self._prov_var.get())
+        cls  = next((p for p in PROVIDERS if p.name == name), AnthropicProvider)
+
+        # Model readout
+        model = self._cfg.get(f"{name}_model", "") or cls.default_model
+        self._model_lbl.configure(text=f"using {model}")
+
+        # Key warning (cloud providers only)
+        if cls.requires_key:
+            has_key = bool(
+                self._cfg.get(f"{name}_api_key")
+                or (cls.env_var and os.environ.get(cls.env_var))
+            )
+            if has_key:
+                self._key_warn_lbl.pack_forget()
+            else:
+                self._key_warn_lbl.configure(
+                    text=f"⚠  No API key for {cls.label}. "
+                         f"Click ⚙ Configure… above to add your key, "
+                         f"or switch to Ollama (local) for keyless use.")
+                self._key_warn_lbl.pack(fill="x", padx=14, pady=(0, 4))
+        else:
+            self._key_warn_lbl.pack_forget()
+
     def _on_provider_changed(self, label: str) -> None:
         self._cfg["provider"] = self._label_to_name(label)
         save_config(self._cfg)
+        self._refresh_provider_ui()
 
     def _configure_provider(self) -> None:
         name = self._label_to_name(self._prov_var.get())
         dlg  = ProviderConfigDialog(self, name)
         self.wait_window(dlg)
         self._cfg = load_config()
+        self._refresh_provider_ui()
 
     def _set_loading(self, loading: bool) -> None:
         self._loading = loading
