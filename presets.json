@@ -1,0 +1,110 @@
+[
+  {
+    "name": "Clean Surf",
+    "preset": 0,
+    "snapshot": 0,
+    "bank_msb": 0,
+    "bank_lsb": 0,
+    "color": "#5DADE2",
+    "category": "Clean"
+  },
+  {
+    "name": "Jazz Box",
+    "preset": 1,
+    "snapshot": 0,
+    "bank_msb": 0,
+    "bank_lsb": 0,
+    "color": "#2980B9",
+    "category": "Clean"
+  },
+  {
+    "name": "Warm Chorus",
+    "preset": 2,
+    "snapshot": 1,
+    "bank_msb": 0,
+    "bank_lsb": 0,
+    "color": "#1ABC9C",
+    "category": "Clean"
+  },
+  {
+    "name": "Blues Crunch",
+    "preset": 10,
+    "snapshot": 0,
+    "bank_msb": 0,
+    "bank_lsb": 0,
+    "color": "#E67E22",
+    "category": "Overdrive"
+  },
+  {
+    "name": "Classic OD",
+    "preset": 11,
+    "snapshot": 0,
+    "bank_msb": 0,
+    "bank_lsb": 0,
+    "color": "#D35400",
+    "category": "Overdrive"
+  },
+  {
+    "name": "TS Pushed",
+    "preset": 12,
+    "snapshot": 1,
+    "bank_msb": 0,
+    "bank_lsb": 0,
+    "color": "#CA6F1E",
+    "category": "Overdrive"
+  },
+  {
+    "name": "Hi-Gain Metal",
+    "preset": 20,
+    "snapshot": 0,
+    "bank_msb": 0,
+    "bank_lsb": 0,
+    "color": "#922B21",
+    "category": "High Gain"
+  },
+  {
+    "name": "Djent Chunk",
+    "preset": 21,
+    "snapshot": 0,
+    "bank_msb": 0,
+    "bank_lsb": 0,
+    "color": "#7B241C",
+    "category": "High Gain"
+  },
+  {
+    "name": "Lead Sustain",
+    "preset": 22,
+    "snapshot": 2,
+    "bank_msb": 0,
+    "bank_lsb": 0,
+    "color": "#C0392B",
+    "category": "High Gain"
+  },
+  {
+    "name": "Ambient Pad",
+    "preset": 30,
+    "snapshot": 0,
+    "bank_msb": 0,
+    "bank_lsb": 0,
+    "color": "#8E44AD",
+    "category": "Ambient"
+  },
+  {
+    "name": "Shimmer Verb",
+    "preset": 31,
+    "snapshot": 1,
+    "bank_msb": 0,
+    "bank_lsb": 0,
+    "color": "#7D3C98",
+    "category": "Ambient"
+  },
+  {
+    "name": "Delay Wash",
+    "preset": 32,
+    "snapshot": 0,
+    "bank_msb": 0,
+    "bank_lsb": 0,
+    "color": "#6C3483",
+    "category": "Ambient"
+  }
+]
