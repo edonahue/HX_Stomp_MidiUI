@@ -50,7 +50,7 @@ def _build_system_prompt() -> str:
     return f"""\
 You are a guitar tone designer for the Line 6 HX Stomp processor.
 Given a tone description or artist to emulate, choose amp/effect models and
-parameters to create a complete signal chain.
+parameters to create a complete signal chain with 3 distinct snapshots.
 
 CONSTRAINTS:
 - Maximum {_MAX_BLOCKS} processing blocks (HX Stomp limit)
@@ -63,6 +63,13 @@ CONSTRAINTS:
 
 AVAILABLE MODELS (use ONLY model_ids from this list):
 {catalog}
+
+SNAPSHOTS:
+Define exactly 3 snapshots with distinct purposes suited to the tone (e.g.
+Rhythm / Lead / Clean, or Verse / Chorus / Solo).
+For each snapshot specify which blocks are active (true) or bypassed (false).
+The amp block should almost always stay active.
+Snapshot names: max 12 characters.
 
 Respond with ONLY a JSON object — no markdown, no extra text.
 
@@ -79,7 +86,24 @@ Required format:
       "explanation": "<why this model was chosen, 1 sentence>"
     }}
   ],
-  "signal_chain_rationale": "<brief overall chain design explanation>"
+  "signal_chain_rationale": "<brief overall chain design explanation>",
+  "snapshots": [
+    {{
+      "name": "<snapshot name, max 12 chars>",
+      "description": "<one sentence>",
+      "block_states": {{"block0": true, "block1": true, "block2": false}}
+    }},
+    {{
+      "name": "<snapshot name>",
+      "description": "<one sentence>",
+      "block_states": {{"block0": true, "block1": true, "block2": true}}
+    }},
+    {{
+      "name": "<snapshot name>",
+      "description": "<one sentence>",
+      "block_states": {{"block0": false, "block1": true, "block2": false}}
+    }}
+  ]
 }}"""
 
 
@@ -181,7 +205,8 @@ def _make_cab(cab_model: HXModel) -> dict:
     }
 
 
-def build_hlx(preset_name: str, blocks_spec: list[dict]) -> dict:
+def build_hlx(preset_name: str, blocks_spec: list[dict],
+              snapshots_spec: list[dict] | None = None) -> dict:
     """
     Construct a complete .hlx JSON dict from a list of block specifications.
 
@@ -191,6 +216,12 @@ def build_hlx(preset_name: str, blocks_spec: list[dict]) -> dict:
         "enabled":  bool,
         "params":   dict,          # LLM-provided overrides (may be empty)
     }
+
+    snapshots_spec (optional): list of up to 3 dicts:
+        {
+            "name":         str,   # max 12 chars
+            "block_states": {"block0": bool, "block1": bool, ...}
+        }
 
     Returns the full .hlx dict ready for json.dumps().
     """
@@ -228,17 +259,31 @@ def build_hlx(preset_name: str, blocks_spec: list[dict]) -> dict:
 
         snapshot_blocks[key] = enabled
 
-    # Build snapshots 0-2 as valid (all blocks on), 3-7 as empty
+    # Build snapshots 0-2 as valid, 3-7 as empty
     snapshots: dict = {}
     for idx in range(8):
         if idx < 3:
+            # Use LLM-provided block states if available, else default to all enabled
+            if snapshots_spec and idx < len(snapshots_spec):
+                snap_spec  = snapshots_spec[idx]
+                snap_name  = str(snap_spec.get("name", f"SNAPSHOT {idx + 1}"))[:12]
+                raw_states = snap_spec.get("block_states", {})
+                # Only keep keys that exist in snapshot_blocks; fill missing with default
+                block_states = {
+                    k: bool(raw_states.get(k, v))
+                    for k, v in snapshot_blocks.items()
+                }
+            else:
+                snap_name    = f"SNAPSHOT {idx + 1}"
+                block_states = dict(snapshot_blocks)
+
             snapshots[f"snapshot{idx}"] = {
                 "@ledcolor":    0,
-                "@name":        f"SNAPSHOT {idx + 1}",
+                "@name":        snap_name,
                 "@tempo":       120.0,
                 "@valid":       True,
                 "@pedalstate":  2,
-                "blocks":       {"dsp0": dict(snapshot_blocks)},
+                "blocks":       {"dsp0": block_states},
                 "controllers":  {},
             }
         else:
@@ -305,6 +350,8 @@ class PresetResult:
     blocks:                 list[dict]  # [{model_id, name, category, explanation}, ...]
     signal_chain_rationale: str
     prompt:                 str
+    snapshots:              list[dict] = field(default_factory=list)
+    # Each snapshot: {"name": str, "description": str, "block_states": {blockN: bool}}
 
 
 # ---------------------------------------------------------------------------
@@ -441,6 +488,18 @@ def generate_hlx_preset(description: str, provider) -> PresetResult:
                     "enabled":     bool(blk.get("enabled", True)),
                 })
 
+            # Parse snapshot specs from LLM response
+            raw_snapshots = data.get("snapshots", [])
+            snapshots_spec: list[dict] = []
+            if isinstance(raw_snapshots, list):
+                for snap in raw_snapshots[:3]:
+                    if isinstance(snap, dict):
+                        snapshots_spec.append({
+                            "name":        str(snap.get("name", ""))[:12],
+                            "description": str(snap.get("description", "")),
+                            "block_states": snap.get("block_states", {}),
+                        })
+
             # Build the .hlx structure
             blocks_spec = [
                 {
@@ -451,7 +510,8 @@ def generate_hlx_preset(description: str, provider) -> PresetResult:
                 }
                 for i, b in enumerate(valid_blocks)
             ]
-            hlx = build_hlx(preset_name, blocks_spec)
+            hlx = build_hlx(preset_name, blocks_spec,
+                            snapshots_spec if snapshots_spec else None)
 
             return PresetResult(
                 hlx_dict               = hlx,
@@ -460,6 +520,7 @@ def generate_hlx_preset(description: str, provider) -> PresetResult:
                 blocks                 = block_meta,
                 signal_chain_rationale = rationale,
                 prompt                 = description,
+                snapshots              = snapshots_spec,
             )
 
         except LLMGenerationError:

@@ -958,6 +958,35 @@ class GeneratePresetDialog(ctk.CTkToplevel):
                     wraplength=290, justify="left",
                 ).pack(side="left", padx=(4, 0))
 
+        # ── Snapshots ─────────────────────────────────────────────────
+        snaps = getattr(result, "snapshots", [])
+        if snaps:
+            ctk.CTkLabel(rf, text="Snapshots",
+                         font=ctk.CTkFont(size=11, weight="bold"),
+                         text_color=_TEXT_DIM, anchor="w").pack(
+                fill="x", padx=12, pady=(6, 4))
+            snap_row = ctk.CTkFrame(rf, fg_color="transparent")
+            snap_row.pack(fill="x", padx=12, pady=(0, 6))
+            _SNAP_COLORS = ["#2c5f8a", "#5a3c82", "#2e6b4f"]
+            for si, snap in enumerate(snaps[:3]):
+                sc = _SNAP_COLORS[si % len(_SNAP_COLORS)]
+                pill = ctk.CTkFrame(snap_row, fg_color=sc, corner_radius=6)
+                pill.pack(side="left", padx=(0, 6))
+                ctk.CTkLabel(
+                    pill,
+                    text=snap.get("name", f"Snapshot {si + 1}"),
+                    font=ctk.CTkFont(size=10, weight="bold"),
+                    text_color="#ffffff",
+                ).pack(padx=10, pady=(5, 1))
+                desc = snap.get("description", "")
+                if desc:
+                    ctk.CTkLabel(
+                        pill, text=desc,
+                        font=ctk.CTkFont(size=9),
+                        text_color="#ffffffaa",
+                        wraplength=130, justify="left",
+                    ).pack(padx=10, pady=(0, 5))
+
         # ── Rationale ─────────────────────────────────────────────────
         if result.signal_chain_rationale:
             ctk.CTkLabel(rf, text="Design Rationale",
