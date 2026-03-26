@@ -48,63 +48,46 @@ _TRAILS_CATEGORIES  = {"Delay", "Reverb"}
 def _build_system_prompt() -> str:
     catalog = catalog_for_prompt()
     return f"""\
-You are a guitar tone designer for the Line 6 HX Stomp processor.
-Given a tone description or artist to emulate, choose amp/effect models and
-parameters to create a complete signal chain with 3 distinct snapshots.
+You are a guitar tone designer for the Line 6 HX Stomp.
+Respond with ONLY a JSON object — no markdown, no explanation.
 
-CONSTRAINTS:
-- Maximum {_MAX_BLOCKS} processing blocks (HX Stomp limit)
-- Always include exactly ONE amp block
-- Signal chain ordering: Dynamics → Distortion → Amp → EQ → Modulation → Delay → Reverb
-- Preset name: max 16 characters, title case
-- Parameter values: most knobs are 0.0–1.0 (floats); Level/Gain use real dB
-  values (e.g. -3.0); HighCut/LowCut use Hz (e.g. 8000.0); Threshold uses
-  negative dB (e.g. -65.0)
+CRITICAL RULES:
+1. Use ONLY the exact model_id strings from the catalog below — no invented IDs
+2. Maximum {_MAX_BLOCKS} processing blocks (HX Stomp hardware limit)
+3. Exactly ONE amp block required
+4. Signal order: Dynamics → Distortion → Amp → EQ → Modulation → Delay → Reverb
+5. Preset name: max 16 chars, title case. Snapshot names: max 12 chars.
+6. Parameter values: most knobs 0.0–1.0; Level/Gain in dB (e.g. -3.0);
+   HighCut/LowCut in Hz (e.g. 8000.0); Threshold in negative dB (e.g. -65.0)
 
-AVAILABLE MODELS (use ONLY model_ids from this list):
+AVAILABLE MODELS — use ONLY these model_ids:
 {catalog}
 
-SNAPSHOTS:
-Define exactly 3 snapshots with distinct purposes suited to the tone (e.g.
-Rhythm / Lead / Clean, or Verse / Chorus / Solo).
-For each snapshot specify which blocks are active (true) or bypassed (false).
+SNAPSHOTS: Define exactly 3 named snapshots (e.g. Rhythm / Lead / Clean).
+Per snapshot: state which blocks are active (true) or bypassed (false).
 The amp block should almost always stay active.
-Snapshot names: max 12 characters.
 
-Respond with ONLY a JSON object — no markdown, no extra text.
-
-Required format:
+EXAMPLE (2-block chain — your response must follow this exact structure):
 {{
-  "preset_name": "<name, max 16 chars>",
-  "description": "<1-2 sentence tone description>",
+  "preset_name": "Plexi Crunch",
+  "description": "Classic British crunch with vintage spring reverb.",
   "blocks": [
-    {{
-      "model_id": "<exact model_id from list above>",
-      "position": <integer 0-5, signal chain order>,
-      "enabled": true,
-      "params": {{"<param>": <value>, ...}},
-      "explanation": "<why this model was chosen, 1 sentence>"
-    }}
+    {{"model_id": "HD2_AmpBritPlexiNrm", "position": 0, "enabled": true,
+      "params": {{"Drive": 0.6, "Bass": 0.5, "Treble": 0.6, "Master": 0.7}},
+      "explanation": "Marshall Plexi for responsive crunch."}},
+    {{"model_id": "HD2_Reverb63Spring", "position": 1, "enabled": true,
+      "params": {{"Decay": 0.4, "Mix": 0.2}},
+      "explanation": "Vintage spring splash."}}
   ],
-  "signal_chain_rationale": "<brief overall chain design explanation>",
+  "signal_chain_rationale": "Simple crunch platform with vintage reverb.",
   "snapshots": [
-    {{
-      "name": "<snapshot name, max 12 chars>",
-      "description": "<one sentence>",
-      "block_states": {{"block0": true, "block1": true, "block2": false}}
-    }},
-    {{
-      "name": "<snapshot name>",
-      "description": "<one sentence>",
-      "block_states": {{"block0": true, "block1": true, "block2": true}}
-    }},
-    {{
-      "name": "<snapshot name>",
-      "description": "<one sentence>",
-      "block_states": {{"block0": false, "block1": true, "block2": false}}
-    }}
+    {{"name": "Rhythm",  "description": "Full chain.",   "block_states": {{"block0": true,  "block1": true}}}},
+    {{"name": "Lead",    "description": "Reverb off.",   "block_states": {{"block0": true,  "block1": false}}}},
+    {{"name": "Dry",     "description": "Amp only.",     "block_states": {{"block0": true,  "block1": false}}}}
   ]
-}}"""
+}}
+
+Now generate a preset for the tone described by the user. Your response must be a single JSON object in the same structure as the example above."""
 
 
 # ---------------------------------------------------------------------------
@@ -205,8 +188,78 @@ def _make_cab(cab_model: HXModel) -> dict:
     }
 
 
+def _sanitize_params(model: HXModel, raw_params: dict) -> tuple[dict, list[str]]:
+    """
+    Validate and clamp LLM-provided parameter values against the model's
+    default_params schema.
+
+    - Unknown keys (not in default_params) are stripped.
+    - Values are clamped to a range inferred from key name and default:
+        • "Cut" / "Freq" in name → Hz range [20.0, 20_000.0]
+        • "hreshold" in name     → dB range [-80.0, 0.0]
+        • bool default           → cast to bool, no clamp
+        • default in [0.0, 1.0] → normalized [0.0, 1.0]
+        • otherwise              → large dB/level range [-40.0, 40.0]
+    - Returns (cleaned_dict, warnings_list).
+    """
+    warnings: list[str] = []
+    cleaned: dict = {}
+
+    # Report unknown keys in one consolidated warning
+    unknown = [k for k in raw_params if k not in model.default_params]
+    if unknown:
+        keys_str = ", ".join(unknown[:5])
+        suffix = "…" if len(unknown) > 5 else ""
+        warnings.append(
+            f"{model.name}: unknown param(s) ignored: {keys_str}{suffix}"
+        )
+
+    for key, default in model.default_params.items():
+        if key not in raw_params:
+            cleaned[key] = default
+            continue
+
+        raw_val = raw_params[key]
+
+        # Boolean params — cast, no numeric clamping
+        if isinstance(default, bool):
+            cleaned[key] = bool(raw_val)
+            continue
+
+        # Try to coerce to float
+        try:
+            val = float(raw_val)
+        except (TypeError, ValueError):
+            warnings.append(
+                f"{model.name}: {key} could not be converted "
+                f"({raw_val!r}), using default"
+            )
+            cleaned[key] = default
+            continue
+
+        # Determine clamping range from key name / default magnitude
+        key_lower = key.lower()
+        if "cut" in key_lower or "freq" in key_lower:
+            lo, hi = 20.0, 20_000.0
+        elif "hreshold" in key_lower:
+            lo, hi = -80.0, 0.0
+        elif isinstance(default, float) and 0.0 <= default <= 1.0:
+            lo, hi = 0.0, 1.0
+        else:
+            lo, hi = -40.0, 40.0
+
+        clamped = max(lo, min(hi, val))
+        if abs(clamped - val) > 1e-6:
+            warnings.append(
+                f"{model.name}: {key} clamped {val:.3g} → {clamped:.3g}"
+            )
+        cleaned[key] = clamped
+
+    return cleaned, warnings
+
+
 def build_hlx(preset_name: str, blocks_spec: list[dict],
-              snapshots_spec: list[dict] | None = None) -> dict:
+              snapshots_spec: list[dict] | None = None) -> tuple[dict, list[str]]:
     """
     Construct a complete .hlx JSON dict from a list of block specifications.
 
@@ -223,11 +276,13 @@ def build_hlx(preset_name: str, blocks_spec: list[dict],
             "block_states": {"block0": bool, "block1": bool, ...}
         }
 
-    Returns the full .hlx dict ready for json.dumps().
+    Returns (hlx_dict, warnings) — hlx_dict is ready for json.dumps();
+    warnings is a list of human-readable validation notes.
     """
     name = preset_name[:16]
 
     dsp0: dict = copy.deepcopy(_SYSTEM_BLOCKS)
+    all_warnings: list[str] = []
 
     snapshot_blocks: dict[str, bool] = {}
     cab_counter = 0
@@ -238,10 +293,13 @@ def build_hlx(preset_name: str, blocks_spec: list[dict],
         if model is None:
             continue
 
-        position = int(spec.get("position", i))
+        position = max(0, min(_MAX_BLOCKS - 1, int(spec.get("position", i))))
         enabled  = bool(spec.get("enabled", True))
-        params   = spec.get("params", {})
+        raw_params = spec.get("params", {})
         key      = f"block{i}"
+
+        sanitized_params, param_warns = _sanitize_params(model, raw_params)
+        all_warnings.extend(param_warns)
 
         if model.category == "Amp":
             cab_key  = f"cab{cab_counter}"
@@ -252,10 +310,11 @@ def build_hlx(preset_name: str, blocks_spec: list[dict],
                 from hx_models import CAB_MODELS
                 cab_mdl = CAB_MODELS[0]
             dsp0[cab_key] = _make_cab(cab_mdl)
-            dsp0[key]     = _make_block(model, position, enabled, params, cab_key)
+            dsp0[key]     = _make_block(model, position, enabled,
+                                        sanitized_params, cab_key)
             cab_counter  += 1
         else:
-            dsp0[key] = _make_block(model, position, enabled, params)
+            dsp0[key] = _make_block(model, position, enabled, sanitized_params)
 
         snapshot_blocks[key] = enabled
 
@@ -330,7 +389,7 @@ def build_hlx(preset_name: str, blocks_spec: list[dict],
             },
             "tone": tone,
         },
-    }
+    }, all_warnings
 
 
 def save_hlx(hlx_dict: dict, filepath: Path) -> None:
@@ -352,6 +411,8 @@ class PresetResult:
     prompt:                 str
     snapshots:              list[dict] = field(default_factory=list)
     # Each snapshot: {"name": str, "description": str, "block_states": {blockN: bool}}
+    warnings:               list[str]  = field(default_factory=list)
+    # Validation notes: clamped params, unknown model IDs, truncated blocks, etc.
 
 
 # ---------------------------------------------------------------------------
@@ -425,13 +486,28 @@ class PresetCatalog:
 # ---------------------------------------------------------------------------
 
 def _strip_fences(text: str) -> str:
-    """Remove optional markdown code fences from LLM response."""
+    """
+    Extract JSON from an LLM response that may include markdown fences or prose.
+
+    Handles:
+    - Triple-backtick fences (``` or ```json)
+    - Prose wrapping: "Here is the JSON:\n{...}\nHope this helps!"
+    """
     text = text.strip()
     if text.startswith("```"):
         parts = text.split("```")
         text  = parts[1] if len(parts) > 1 else text
         if text.startswith("json"):
             text = text[4:]
+        text = text.strip()
+
+    # Fallback: extract the outermost {...} object from any surrounding prose
+    if not text.startswith("{"):
+        start = text.find("{")
+        end   = text.rfind("}")
+        if start != -1 and end > start:
+            text = text[start : end + 1]
+
     return text.strip()
 
 
@@ -452,7 +528,17 @@ def generate_hlx_preset(description: str, provider) -> PresetResult:
 
     for attempt in range(2):
         try:
-            raw  = provider.complete(system_prompt, description,
+            # On retry, prepend a context hint so weaker models know what failed
+            user_msg = description
+            if attempt > 0 and last_exc is not None:
+                user_msg = (
+                    f"{description}\n\n"
+                    f"Note: previous attempt failed ({last_exc}). "
+                    "Return ONLY a JSON object — no markdown, no prose. "
+                    "Use ONLY model_ids from the catalog."
+                )
+
+            raw  = provider.complete(system_prompt, user_msg,
                                      max_tokens=_HLX_MAX_TOKENS)
             data = json.loads(_strip_fences(raw))
 
@@ -464,12 +550,21 @@ def generate_hlx_preset(description: str, provider) -> PresetResult:
             if not isinstance(raw_blocks, list) or not raw_blocks:
                 raise ValueError("No blocks in response")
 
-            # Validate model IDs; skip unknowns
+            total_raw = len(raw_blocks)
+
+            # Validate model IDs; track skipped unknowns
             valid_blocks: list[dict] = []
+            skipped_ids: list[str]   = []
             for blk in raw_blocks:
                 mid = str(blk.get("model_id", ""))
                 if mid in ALL_MODELS:
                     valid_blocks.append(blk)
+                else:
+                    skipped_ids.append(mid or "<empty>")
+
+            # Track blocks truncated beyond the 6-block limit
+            truncated = max(0, len(valid_blocks) - _MAX_BLOCKS)
+            valid_blocks = valid_blocks[:_MAX_BLOCKS]
 
             # Require at least one amp block
             amp_blocks = [b for b in valid_blocks
@@ -511,8 +606,26 @@ def generate_hlx_preset(description: str, provider) -> PresetResult:
                 }
                 for i, b in enumerate(valid_blocks)
             ]
-            hlx = build_hlx(preset_name, blocks_spec,
-                            snapshots_spec if snapshots_spec else None)
+            hlx, param_warnings = build_hlx(
+                preset_name, blocks_spec,
+                snapshots_spec if snapshots_spec else None,
+            )
+
+            # Accumulate all generation warnings
+            gen_warnings: list[str] = []
+            if skipped_ids:
+                ids_str  = ", ".join(skipped_ids[:3])
+                ellipsis = "…" if len(skipped_ids) > 3 else ""
+                gen_warnings.append(
+                    f"{len(skipped_ids)} model(s) not in catalog, skipped: "
+                    f"{ids_str}{ellipsis}"
+                )
+            if truncated:
+                gen_warnings.append(
+                    f"{truncated} block(s) beyond the {_MAX_BLOCKS}-block "
+                    "limit were dropped"
+                )
+            gen_warnings.extend(param_warnings)
 
             return PresetResult(
                 hlx_dict               = hlx,
@@ -522,6 +635,7 @@ def generate_hlx_preset(description: str, provider) -> PresetResult:
                 signal_chain_rationale = rationale,
                 prompt                 = description,
                 snapshots              = snapshots_spec,
+                warnings               = gen_warnings,
             )
 
         except LLMGenerationError:

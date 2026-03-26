@@ -903,9 +903,13 @@ class GeneratePresetDialog(ctk.CTkToplevel):
             ).pack(fill="x", padx=12, pady=(2, 8))
 
         # ── Signal chain strip ────────────────────────────────────────
-        chain_lbl = ctk.CTkLabel(rf, text="Signal Chain",
-                                 font=ctk.CTkFont(size=11, weight="bold"),
-                                 text_color=_TEXT_DIM, anchor="w")
+        n_blocks  = len(result.blocks)
+        chain_lbl = ctk.CTkLabel(
+            rf,
+            text=f"Signal Chain  ({n_blocks} block{'s' if n_blocks != 1 else ''})",
+            font=ctk.CTkFont(size=11, weight="bold"),
+            text_color=_TEXT_DIM, anchor="w",
+        )
         chain_lbl.pack(fill="x", padx=12, pady=(0, 4))
 
         chain_outer = ctk.CTkFrame(rf, fg_color="transparent")
@@ -940,6 +944,27 @@ class GeneratePresetDialog(ctk.CTkToplevel):
                     chain_outer, text="→",
                     font=ctk.CTkFont(size=12), text_color=_TEXT_DIM,
                 ).pack(side="left", padx=2)
+
+        # ── Warnings strip (amber) ────────────────────────────────────
+        result_warnings = getattr(result, "warnings", [])
+        if result_warnings:
+            warn_frame = ctk.CTkFrame(rf, fg_color="#2a2000", corner_radius=6)
+            warn_frame.pack(fill="x", padx=12, pady=(6, 2))
+            ctk.CTkLabel(
+                warn_frame,
+                text="⚠  Generation notes",
+                font=ctk.CTkFont(size=10, weight="bold"),
+                text_color="#e8a838", anchor="w",
+            ).pack(fill="x", padx=10, pady=(6, 2))
+            for w in result_warnings:
+                ctk.CTkLabel(
+                    warn_frame,
+                    text=f"  • {w}",
+                    font=ctk.CTkFont(size=9),
+                    text_color="#c8980a", anchor="w",
+                    wraplength=420, justify="left",
+                ).pack(fill="x", padx=10, pady=(0, 2))
+            ctk.CTkFrame(warn_frame, height=4, fg_color="transparent").pack()
 
         # ── Per-block explanations ────────────────────────────────────
         expl_blocks = [b for b in result.blocks if b.get("explanation")]
