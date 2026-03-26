@@ -157,6 +157,79 @@ AMP_MODELS: list[HXModel] = [
                           "Hum": 0.50, "Ripple": 0.50},
         paired_cab  = "HD2_CabMicIr_4x12CaliV30",
     ),
+    HXModel(
+        model_id    = "HD2_AmpRevvGen120",
+        name        = "Revv Gen Red",
+        category    = "Amp",
+        description = "Revv Generator 120 Ch3 Red. Modern high-gain, tight low end, smooth lead. Metal/prog.",
+        default_params = {"Drive": 0.65, "Bass": 0.50, "Mid": 0.48, "Treble": 0.55,
+                          "Presence": 0.55, "Master": 0.60, "ChVol": 1.0,
+                          "Sag": 0.35, "Bias": 0.50, "BiasX": 0.50,
+                          "Hum": 0.50, "Ripple": 0.50},
+        paired_cab  = "HD2_CabMicIr_4x12CaliV30",
+    ),
+    HXModel(
+        model_id    = "HD2_AmpDasBenzin",
+        name        = "Das Benzin",
+        category    = "Amp",
+        description = "Diezel Herbert-style. Three channels, extreme gain, surgical EQ. Modern metal.",
+        default_params = {"Drive": 0.70, "Bass": 0.50, "Mid": 0.45, "Treble": 0.55,
+                          "Presence": 0.55, "Master": 0.58, "ChVol": 1.0,
+                          "Sag": 0.30, "Bias": 0.50, "BiasX": 0.50,
+                          "Hum": 0.50, "Ripple": 0.50},
+        paired_cab  = "HD2_CabMicIr_4x12XXLV30",
+    ),
+    HXModel(
+        model_id    = "HD2_AmpVoltageQueen",
+        name        = "Voltage Queen",
+        category    = "Amp",
+        description = "Victoria 35115. Clean to edge-of-breakup. Warm, woody, American clean.",
+        default_params = {"Drive": 0.35, "Bass": 0.50, "Mid": 0.50, "Treble": 0.55,
+                          "Master": 0.80, "ChVol": 1.0, "Sag": 0.60,
+                          "Bias": 0.50, "BiasX": 0.50, "Hum": 0.50, "Ripple": 0.50},
+        paired_cab  = "HD2_CabMicIr_1x12USDeluxe",
+    ),
+    HXModel(
+        model_id    = "HD2_AmpSoupPro",
+        name        = "Soup Pro",
+        category    = "Amp",
+        description = "Supro 1695T Dual-Tone. Bright, wiry breakup. Indie, lo-fi, alternative.",
+        default_params = {"Drive": 0.55, "Bass": 0.45, "Treble": 0.60,
+                          "Master": 0.75, "ChVol": 1.0, "Sag": 0.60,
+                          "Bias": 0.55, "BiasX": 0.50, "Hum": 0.50, "Ripple": 0.50},
+        paired_cab  = "HD2_CabMicIr_1x12Fullerton",
+    ),
+    HXModel(
+        model_id    = "HD2_AmpMailOrderTwin",
+        name        = "Mail Order Twin",
+        category    = "Amp",
+        description = "Silvertone 1484. Raw, gritty character. Lo-fi indie and garage rock.",
+        default_params = {"Drive": 0.50, "Tone": 0.50,
+                          "Master": 0.70, "ChVol": 1.0, "Sag": 0.55,
+                          "Bias": 0.50, "BiasX": 0.50, "Hum": 0.50, "Ripple": 0.50},
+        paired_cab  = "HD2_CabMicIr_2x12DoubleC12N",
+    ),
+    HXModel(
+        model_id    = "HD2_AmpInterstateZed",
+        name        = "Interstate Zed",
+        category    = "Amp",
+        description = "Dr. Z Z-Wreck. Touch-sensitive clean to crunch. Complex, harmonically rich.",
+        default_params = {"Drive": 0.45, "Bass": 0.50, "Mid": 0.55, "Treble": 0.55,
+                          "Presence": 0.50, "Master": 0.75, "ChVol": 1.0,
+                          "Sag": 0.50, "Bias": 0.50, "BiasX": 0.50,
+                          "Hum": 0.50, "Ripple": 0.50},
+        paired_cab  = "HD2_CabMicIr_2x12BlueBell",
+    ),
+    HXModel(
+        model_id    = "HD2_AmpDividedDuo",
+        name        = "Divided Duo",
+        category    = "Amp",
+        description = "Divided by 13 JRT 9/15. Thick, vintage crunch. EL34/6V6 switchable character.",
+        default_params = {"Drive": 0.55, "Bass": 0.50, "Treble": 0.55,
+                          "Master": 0.70, "ChVol": 1.0, "Sag": 0.55,
+                          "Bias": 0.50, "BiasX": 0.50, "Hum": 0.50, "Ripple": 0.50},
+        paired_cab  = "HD2_CabMicIr_4x12Greenback25",
+    ),
 ]
 
 
@@ -229,6 +302,30 @@ CAB_MODELS: list[HXModel] = [
         default_params = {"Mic": 0, "Distance": 1.0, "HighCut": 8000.0,
                           "Level": 0.0, "LowCut": 80.0},
     ),
+    HXModel(
+        model_id    = "HD2_CabMicIr_4x12BritBasket",
+        name        = "4x12 Brit Basket",
+        category    = "Cab",
+        description = "Marshall Basket Weave 4x12 with G12M Greenbacks. Punchy, mid-forward crunch.",
+        default_params = {"Mic": 0, "Distance": 1.0, "HighCut": 8000.0,
+                          "Level": 0.0, "LowCut": 80.0},
+    ),
+    HXModel(
+        model_id    = "HD2_CabMicIr_2x12Interstate",
+        name        = "2x12 Interstate",
+        category    = "Cab",
+        description = "Dr. Z 2x12 open-back. Balanced mids, chimey high end. Clean and crunch amps.",
+        default_params = {"Mic": 0, "Distance": 1.0, "HighCut": 8000.0,
+                          "Level": 0.0, "LowCut": 80.0},
+    ),
+    HXModel(
+        model_id    = "HD2_CabMicIr_1x8TweedChamp",
+        name        = "1x8 Tweed Champ",
+        category    = "Cab",
+        description = "Tiny 1x8 Tweed Champ cab. Narrow, focused, lo-fi character.",
+        default_params = {"Mic": 0, "Distance": 1.0, "HighCut": 7500.0,
+                          "Level": 0.0, "LowCut": 100.0},
+    ),
 ]
 
 
@@ -293,6 +390,20 @@ DISTORTION_MODELS: list[HXModel] = [
         description = "OCD overdrive. High-headroom drive, tight and punchy. Rock and metal.",
         default_params = {"Drive": 0.55, "Tone": 0.50, "Level": 0.60},
     ),
+    HXModel(
+        model_id    = "HD2_DistDerangedMstr",
+        name        = "Deranged Master",
+        category    = "Distortion",
+        description = "Dallas Rangemaster treble booster. Bright, searing boost. Classic British crunch.",
+        default_params = {"Gain": 0.70, "Level": 0.60},
+    ),
+    HXModel(
+        model_id    = "HD2_DistPillarsOD",
+        name        = "Pillars OD",
+        category    = "Distortion",
+        description = "Line 6 original high-gain overdrive. Versatile gain stages from crunch to lead.",
+        default_params = {"Drive": 0.60, "Bass": 0.50, "Treble": 0.50, "Level": 0.60},
+    ),
 ]
 
 
@@ -342,6 +453,20 @@ DELAY_MODELS: list[HXModel] = [
         category    = "Delay",
         description = "TC Electronic TonePrint-style delay. Versatile, studio-quality repeats.",
         default_params = {"Time": 0.35, "Feedback": 0.30, "Mix": 0.25, "Trails": False},
+    ),
+    HXModel(
+        model_id    = "HD2_DelayCosmos",
+        name        = "Cosmos Echo",
+        category    = "Delay",
+        description = "Roland RE-201 Space Echo. Warm tape loop, modulated echoes. Vintage atmosphere.",
+        default_params = {"Time": 0.40, "Feedback": 0.38, "Mix": 0.28, "Trails": False},
+    ),
+    HXModel(
+        model_id    = "HD2_DelayReverse",
+        name        = "Reverse Delay",
+        category    = "Delay",
+        description = "Reverses the delay signal. Swelling, dream-like texture. Ambient and experimental.",
+        default_params = {"Time": 0.50, "Feedback": 0.25, "Mix": 0.30, "Trails": False},
     ),
 ]
 
@@ -393,6 +518,27 @@ REVERB_MODELS: list[HXModel] = [
         description = "Modulated reverb. Slowly moving, wide soundscape. Post-rock and ambient.",
         default_params = {"Decay": 0.55, "Mod": 0.40, "Mix": 0.28, "Trails": False},
     ),
+    HXModel(
+        model_id    = "HD2_ReverbOcto",
+        name        = "Octo",
+        category    = "Reverb",
+        description = "Shimmer reverb with octave shift. Ethereal, orchestral. Ambient and post-rock.",
+        default_params = {"Decay": 0.65, "Mix": 0.32, "Trails": False},
+    ),
+    HXModel(
+        model_id    = "HD2_ReverbCave",
+        name        = "Cave",
+        category    = "Reverb",
+        description = "Dark, cavernous reverb. Massive, slow decay. Doom, drone and dark ambient.",
+        default_params = {"Decay": 0.75, "Predelay": 0.05, "Mix": 0.30, "Trails": False},
+    ),
+    HXModel(
+        model_id    = "HD2_ReverbPlateaux",
+        name        = "Plateaux",
+        category    = "Reverb",
+        description = "Infinite pad-style reverb. Dense, lush swell. Ambient and textural playing.",
+        default_params = {"Decay": 0.80, "Mix": 0.35, "Trails": False},
+    ),
 ]
 
 
@@ -435,6 +581,20 @@ MODULATION_MODELS: list[HXModel] = [
         category    = "Modulation",
         description = "Leslie 145 rotary speaker. Doppler-effect wobble. Organ-like, ambient.",
         default_params = {"Speed": 0.40, "Mix": 0.70},
+    ),
+    HXModel(
+        model_id    = "HD2_ModUniVibe",
+        name        = "UniVibe",
+        category    = "Modulation",
+        description = "Uni-Vibe chorus/vibrato. Watery, pulsing effect. Hendrix and psychedelic.",
+        default_params = {"Speed": 0.40, "Depth": 0.60, "Mix": 0.60},
+    ),
+    HXModel(
+        model_id    = "HD2_ModCE1Chorus",
+        name        = "CE-1 Chorus",
+        category    = "Modulation",
+        description = "Roland CE-1 chorus. Thick, lush analog chorus. 80s clean and crunch.",
+        default_params = {"Rate": 0.35, "Depth": 0.55, "Mix": 0.50},
     ),
 ]
 

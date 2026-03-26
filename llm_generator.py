@@ -1245,6 +1245,23 @@ class PresetCatalogDialog(ctk.CTkToplevel):
                         font=ctk.CTkFont(size=10), text_color=_TEXT_DIM,
                     ).pack(side="left", padx=1)
 
+        # ── Snapshot pills ────────────────────────────────────────────
+        snaps = entry.get("snapshots", [])
+        if snaps:
+            snap_row = ctk.CTkFrame(card, fg_color="transparent")
+            snap_row.pack(fill="x", padx=10, pady=(0, 4))
+            _SNAP_COLORS = ["#2c5f8a", "#5a3c82", "#2e6b4f"]
+            for si, snap in enumerate(snaps[:3]):
+                sc = _SNAP_COLORS[si % len(_SNAP_COLORS)]
+                pill = ctk.CTkFrame(snap_row, fg_color=sc, corner_radius=4)
+                pill.pack(side="left", padx=(0, 4))
+                ctk.CTkLabel(
+                    pill,
+                    text=snap.get("name", f"Snap {si + 1}"),
+                    font=ctk.CTkFont(size=9, weight="bold"),
+                    text_color="#ffffff",
+                ).pack(padx=7, pady=(3, 3))
+
         # ── Rationale (collapsed — shown as tooltip-style dim text) ───
         if rationale:
             ctk.CTkLabel(

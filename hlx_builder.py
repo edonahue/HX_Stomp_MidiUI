@@ -405,6 +405,7 @@ class PresetCatalog:
             "prompt":                 result.prompt,
             "blocks":                 result.blocks,
             "signal_chain_rationale": result.signal_chain_rationale,
+            "snapshots":              result.snapshots,
         })
         self._dump(entries)
         return filepath
