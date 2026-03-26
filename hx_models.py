@@ -758,7 +758,12 @@ def catalog_for_prompt(categories: list[str] | None = None) -> str:
         models = _CATEGORY_LISTS.get(cat, [])
         if not models:
             continue
-        lines.append(f"\n## {cat}s" if cat != "EQ" else "\n## EQ")
+        _heading = {
+            "Amp": "Amps", "Cab": "Cabs", "Distortion": "Distortion",
+            "Dynamics": "Dynamics", "EQ": "EQ", "Modulation": "Modulation",
+            "Delay": "Delay", "Reverb": "Reverb",
+        }
+        lines.append(f"\n## {_heading.get(cat, cat)}")
         for m in models:
             alias_str = f" | {', '.join(m.aliases)}" if m.aliases else ""
             lines.append(f"- {m.model_id} | {m.name}{alias_str} | {m.description}")
