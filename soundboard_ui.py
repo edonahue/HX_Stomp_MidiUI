@@ -20,7 +20,7 @@ from typing import Optional
 
 import customtkinter as ctk
 
-from llm_generator import GenerateToneDialog
+from llm_generator import GeneratePresetDialog, GenerateToneDialog
 from midi_interface import HXStompMidi
 from tone_manager import Tone, ToneManager
 
@@ -557,7 +557,8 @@ class SoundboardApp(ctk.CTk):
         tones_menu = tk.Menu(menubar, tearoff=0,
                              bg="#2b2b2b", fg=_TEXT_BRIGHT,
                              activebackground=_ACCENT, activeforeground="#ffffff")
-        tones_menu.add_command(label="✨  Generate Tone…", command=self._generate_tone)
+        tones_menu.add_command(label="✨  Generate Tone…",    command=self._generate_tone)
+        tones_menu.add_command(label="📦  Generate Preset (.hlx)…", command=self._generate_preset)
         tones_menu.add_separator()
         tones_menu.add_command(label="⊕  Add Tone",     command=self._add_tone)
         tones_menu.add_command(label="✏  Edit Selected", command=self._edit_tone)
@@ -615,6 +616,10 @@ class SoundboardApp(ctk.CTk):
 
         ctk.CTkButton(toolbar, text="✨  Label Tone", width=115,
                       command=self._generate_tone, **btn_opts).pack(
+            side="left", padx=2, pady=6)
+
+        ctk.CTkButton(toolbar, text="📦  Preset", width=100,
+                      command=self._generate_preset, **btn_opts).pack(
             side="left", padx=2, pady=6)
 
         # Live panel toggle — right-aligned
@@ -949,6 +954,15 @@ class SoundboardApp(ctk.CTk):
                 self._render_tones()
             except ValueError as e:
                 messagebox.showerror("Error", str(e))
+
+    def _generate_preset(self) -> None:
+        if self._no_llm:
+            messagebox.showinfo(
+                "LLM Disabled",
+                "AI preset generation is disabled.\n"
+                "Restart without --no-llm to enable it.")
+            return
+        GeneratePresetDialog(self)
 
     # ------------------------------------------------------------------
     # Tuner

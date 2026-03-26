@@ -20,6 +20,7 @@ import urllib.error
 import urllib.request
 from abc import ABC, abstractmethod
 from pathlib import Path
+from tkinter import filedialog
 from typing import Callable
 
 import customtkinter as ctk
@@ -30,8 +31,9 @@ from tone_manager import Tone
 # Constants
 # ---------------------------------------------------------------------------
 
-_CONFIG_PATH = Path.home() / ".hxstomp" / "config.json"
-_MAX_TOKENS  = 200
+_CONFIG_PATH    = Path.home() / ".hxstomp" / "config.json"
+_MAX_TOKENS     = 200
+_HLX_MAX_TOKENS = 1500
 
 _SYSTEM_PROMPT = """\
 You are a MIDI tone assistant for the Line 6 HX Stomp guitar processor.
@@ -92,7 +94,8 @@ class LLMProvider(ABC):
         self.base_url = base_url or ""
 
     @abstractmethod
-    def complete(self, system: str, user: str) -> str:
+    def complete(self, system: str, user: str,
+                 max_tokens: int = _MAX_TOKENS) -> str:
         """Return raw text response. Raise LLMGenerationError on failure."""
 
 
@@ -103,7 +106,8 @@ class AnthropicProvider(LLMProvider):
     default_model = "claude-haiku-4-5"
     env_var       = "ANTHROPIC_API_KEY"
 
-    def complete(self, system: str, user: str) -> str:
+    def complete(self, system: str, user: str,
+                 max_tokens: int = _MAX_TOKENS) -> str:
         try:
             import anthropic  # type: ignore
         except ImportError as exc:
@@ -119,7 +123,7 @@ class AnthropicProvider(LLMProvider):
         try:
             msg = client.messages.create(
                 model=self.model,
-                max_tokens=_MAX_TOKENS,
+                max_tokens=max_tokens,
                 system=system,
                 messages=[{"role": "user", "content": user}],
             )
@@ -135,7 +139,8 @@ class OpenAIProvider(LLMProvider):
     default_model = "gpt-4o-mini"
     env_var       = "OPENAI_API_KEY"
 
-    def complete(self, system: str, user: str) -> str:
+    def complete(self, system: str, user: str,
+                 max_tokens: int = _MAX_TOKENS) -> str:
         try:
             import openai  # type: ignore
         except ImportError as exc:
@@ -151,7 +156,7 @@ class OpenAIProvider(LLMProvider):
         try:
             resp = client.chat.completions.create(
                 model=self.model,
-                max_tokens=_MAX_TOKENS,
+                max_tokens=max_tokens,
                 messages=[
                     {"role": "system", "content": system},
                     {"role": "user",   "content": user},
@@ -168,7 +173,8 @@ class OllamaProvider(LLMProvider):
     requires_key  = False
     default_model = "llama3.2"
 
-    def complete(self, system: str, user: str) -> str:
+    def complete(self, system: str, user: str,
+                 max_tokens: int = _MAX_TOKENS) -> str:
         base    = (self.base_url or "http://localhost:11434").rstrip("/")
         url     = f"{base}/api/chat"
         payload = json.dumps({
@@ -178,6 +184,7 @@ class OllamaProvider(LLMProvider):
                 {"role": "system", "content": system},
                 {"role": "user",   "content": user},
             ],
+            "options": {"num_predict": max_tokens},
         }).encode()
         req = urllib.request.Request(
             url, data=payload,
@@ -201,7 +208,8 @@ class GeminiProvider(LLMProvider):
     default_model = "gemini-1.5-flash"
     env_var       = "GOOGLE_API_KEY"
 
-    def complete(self, system: str, user: str) -> str:
+    def complete(self, system: str, user: str,
+                 max_tokens: int = _MAX_TOKENS) -> str:
         try:
             import google.generativeai as genai  # type: ignore
         except ImportError as exc:
@@ -218,7 +226,10 @@ class GeminiProvider(LLMProvider):
         model = genai.GenerativeModel(model_name=self.model,
                                       system_instruction=system)
         try:
-            resp = model.generate_content(user)
+            resp = model.generate_content(
+                user,
+                generation_config={"max_output_tokens": max_tokens},
+            )
             return resp.text
         except Exception as exc:
             raise LLMGenerationError(f"Gemini API error: {exc}") from exc
@@ -583,3 +594,438 @@ class GenerateToneDialog(ctk.CTkToplevel):
         self._set_loading(False)
         self._status_lbl.configure(text=f"Error: {msg}",
                                     text_color="#e74c3c")
+
+
+# ---------------------------------------------------------------------------
+# GeneratePresetDialog
+# ---------------------------------------------------------------------------
+
+# Category label → short emoji badge shown in the signal chain strip
+_CAT_BADGE: dict[str, str] = {
+    "Amp":        "🎸",
+    "Distortion": "🔥",
+    "Dynamics":   "⚡",
+    "EQ":         "🎛",
+    "Modulation": "🌀",
+    "Delay":      "🔁",
+    "Reverb":     "🌊",
+    "Cab":        "📦",
+}
+
+_CAT_COLOR: dict[str, str] = {
+    "Amp":        "#c0392b",
+    "Distortion": "#e67e22",
+    "Dynamics":   "#2980b9",
+    "EQ":         "#8e44ad",
+    "Modulation": "#16a085",
+    "Delay":      "#2471a3",
+    "Reverb":     "#1a6b8a",
+    "Cab":        "#555555",
+}
+
+
+class GeneratePresetDialog(ctk.CTkToplevel):
+    """
+    Dialog for generating a complete HX Stomp .hlx preset via LLM.
+
+    After generation the result panel shows the signal chain, per-block
+    explanations, and overall rationale.  The user can then save the .hlx
+    file and optionally regenerate.
+    """
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title("Generate HX Stomp Preset")
+        self.resizable(True, False)
+        self.grab_set()
+
+        self._cfg     = load_config()
+        self._loading = False
+        self._result  = None          # PresetResult once generated
+
+        self._build()
+
+    # ------------------------------------------------------------------
+    # Helpers (shared with GenerateToneDialog)
+    # ------------------------------------------------------------------
+
+    def _available_labels(self) -> list[str]:
+        return [cls.label for cls in PROVIDERS]
+
+    def _label_to_name(self, label: str) -> str:
+        for cls in PROVIDERS:
+            if cls.label == label:
+                return cls.name
+        return "anthropic"
+
+    def _name_to_label(self, name: str) -> str:
+        for cls in PROVIDERS:
+            if cls.name == name:
+                return cls.label
+        return AnthropicProvider.label
+
+    # ------------------------------------------------------------------
+    # Build
+    # ------------------------------------------------------------------
+
+    def _build(self) -> None:
+        pad = {"padx": 14, "pady": 6}
+
+        # ── Provider row ──────────────────────────────────────────────
+        prov_frame = ctk.CTkFrame(self, fg_color="transparent")
+        prov_frame.pack(fill="x", **pad)
+
+        ctk.CTkLabel(prov_frame, text="Provider:", width=70,
+                     anchor="w").pack(side="left")
+
+        current_label = self._name_to_label(
+            self._cfg.get("provider", "anthropic"))
+        self._prov_var = tk.StringVar(value=current_label)
+        ctk.CTkOptionMenu(
+            prov_frame,
+            variable=self._prov_var,
+            values=self._available_labels(),
+            width=200,
+            command=self._on_provider_changed,
+        ).pack(side="left", padx=(0, 8))
+
+        ctk.CTkButton(
+            prov_frame, text="⚙  Configure…", width=115,
+            fg_color="transparent", border_width=1, text_color=_TEXT_BRIGHT,
+            command=self._configure_provider,
+        ).pack(side="left")
+
+        self._model_lbl = ctk.CTkLabel(
+            prov_frame, text="",
+            font=ctk.CTkFont(size=10), text_color=_TEXT_DIM, anchor="w")
+        self._model_lbl.pack(side="left", padx=(10, 0))
+
+        # Key warning
+        self._key_warn_lbl = ctk.CTkLabel(
+            self, text="",
+            text_color="#e8a838",
+            font=ctk.CTkFont(size=11),
+            anchor="w", wraplength=460, justify="left")
+
+        # ── Description ───────────────────────────────────────────────
+        ctk.CTkLabel(self, text="Describe the tone or artist to emulate:",
+                     anchor="w").pack(fill="x", padx=14, pady=(8, 2))
+
+        txt_frame = ctk.CTkFrame(self, fg_color="#2b2b2b", corner_radius=6)
+        txt_frame.pack(fill="x", padx=14, pady=(0, 4))
+        self._text = tk.Text(
+            txt_frame,
+            height=4, width=52,
+            wrap="word",
+            bg="#2b2b2b", fg=_TEXT_BRIGHT,
+            insertbackground=_TEXT_BRIGHT,
+            relief="flat", bd=0,
+            font=("Helvetica", 12),
+            padx=8, pady=8,
+        )
+        self._text.pack(fill="x", padx=2, pady=2)
+        self._text.focus_set()
+
+        # Hint
+        ctk.CTkLabel(
+            self,
+            text="The AI selects amp and effect models from the HX Stomp catalog "
+                 "and explains each choice.\nSave the resulting .hlx file, then "
+                 "import it into HX Edit to load onto your Stomp.",
+            font=ctk.CTkFont(size=10),
+            text_color=_TEXT_DIM,
+            anchor="w", justify="left", wraplength=460,
+        ).pack(fill="x", padx=14, pady=(2, 6))
+
+        # Progress bar
+        self._progress = ctk.CTkProgressBar(self, mode="indeterminate")
+
+        # Status label
+        self._status_lbl = ctk.CTkLabel(
+            self, text="", text_color=_TEXT_DIM,
+            font=ctk.CTkFont(size=11), anchor="w", wraplength=460)
+        self._status_lbl.pack(fill="x", padx=14, pady=(0, 2))
+
+        # ── Buttons ───────────────────────────────────────────────────
+        btn_frame = ctk.CTkFrame(self, fg_color="transparent")
+        btn_frame.pack(pady=(4, 8))
+
+        self._gen_btn = ctk.CTkButton(
+            btn_frame, text="📦  Generate Preset", width=150,
+            command=self._start_generate)
+        self._gen_btn.pack(side="left", padx=6)
+
+        ctk.CTkButton(
+            btn_frame, text="Cancel", width=90,
+            fg_color="transparent", border_width=1, text_color=_TEXT_BRIGHT,
+            command=self.destroy,
+        ).pack(side="left", padx=6)
+
+        # Result area — built dynamically after generation
+        self._result_frame: ctk.CTkFrame | None = None
+
+        # Initialise dynamic labels
+        self._refresh_provider_ui()
+
+    # ------------------------------------------------------------------
+    # Provider helpers (mirror GenerateToneDialog)
+    # ------------------------------------------------------------------
+
+    def _refresh_provider_ui(self) -> None:
+        name = self._label_to_name(self._prov_var.get())
+        cls  = next((p for p in PROVIDERS if p.name == name), AnthropicProvider)
+
+        model = self._cfg.get(f"{name}_model", "") or cls.default_model
+        self._model_lbl.configure(text=f"using {model}")
+
+        if cls.requires_key:
+            has_key = bool(
+                self._cfg.get(f"{name}_api_key")
+                or (cls.env_var and os.environ.get(cls.env_var))
+            )
+            if has_key:
+                self._key_warn_lbl.pack_forget()
+            else:
+                self._key_warn_lbl.configure(
+                    text=f"⚠  No API key for {cls.label}. "
+                         f"Click ⚙ Configure… to add your key.")
+                self._key_warn_lbl.pack(fill="x", padx=14, pady=(0, 4))
+        else:
+            self._key_warn_lbl.pack_forget()
+
+    def _on_provider_changed(self, label: str) -> None:
+        self._cfg["provider"] = self._label_to_name(label)
+        save_config(self._cfg)
+        self._refresh_provider_ui()
+
+    def _configure_provider(self) -> None:
+        name = self._label_to_name(self._prov_var.get())
+        dlg  = ProviderConfigDialog(self, name)
+        self.wait_window(dlg)
+        self._cfg = load_config()
+        self._refresh_provider_ui()
+
+    # ------------------------------------------------------------------
+    # Loading state
+    # ------------------------------------------------------------------
+
+    def _set_loading(self, loading: bool) -> None:
+        self._loading = loading
+        if loading:
+            self._gen_btn.configure(state="disabled", text="Generating…")
+            self._progress.pack(fill="x", padx=14, pady=(0, 4),
+                                 before=self._status_lbl)
+            self._progress.start()
+        else:
+            self._progress.stop()
+            self._progress.pack_forget()
+            self._gen_btn.configure(state="normal", text="📦  Generate Preset")
+
+    # ------------------------------------------------------------------
+    # Generation
+    # ------------------------------------------------------------------
+
+    def _start_generate(self) -> None:
+        description = self._text.get("1.0", "end").strip()
+        if not description:
+            self._status_lbl.configure(
+                text="Please describe a tone or artist first.",
+                text_color="#e74c3c")
+            return
+        self._status_lbl.configure(text="", text_color=_TEXT_DIM)
+        # Clear previous result if regenerating
+        if self._result_frame is not None:
+            self._result_frame.destroy()
+            self._result_frame = None
+        self._set_loading(True)
+        threading.Thread(target=self._worker, args=(description,),
+                         daemon=True).start()
+
+    def _worker(self, description: str) -> None:
+        try:
+            from hlx_builder import generate_hlx_preset
+            provider = get_provider(self._cfg)
+            result   = generate_hlx_preset(description, provider)
+            self.after(0, lambda: self._on_result(result))
+        except LLMGenerationError as exc:
+            msg = str(exc)
+            self.after(0, lambda m=msg: self._on_error(m))
+
+    # ------------------------------------------------------------------
+    # Result display
+    # ------------------------------------------------------------------
+
+    def _on_result(self, result) -> None:
+        self._set_loading(False)
+        self._result = result
+        self._build_result_panel(result)
+
+    def _on_error(self, msg: str) -> None:
+        self._set_loading(False)
+        self._status_lbl.configure(text=f"Error: {msg}", text_color="#e74c3c")
+
+    def _build_result_panel(self, result) -> None:
+        """Build (or rebuild) the result panel below the action buttons."""
+        if self._result_frame is not None:
+            self._result_frame.destroy()
+
+        rf = ctk.CTkFrame(self, fg_color="#1e1e1e", corner_radius=8)
+        rf.pack(fill="x", padx=14, pady=(4, 8))
+        self._result_frame = rf
+
+        # Separator line
+        ctk.CTkFrame(rf, height=1, fg_color="#333333").pack(
+            fill="x", padx=0, pady=(0, 8))
+
+        # Preset name + description
+        ctk.CTkLabel(
+            rf,
+            text=result.preset_name,
+            font=ctk.CTkFont(size=15, weight="bold"),
+            text_color=_TEXT_BRIGHT, anchor="w",
+        ).pack(fill="x", padx=12, pady=(4, 0))
+
+        if result.description:
+            ctk.CTkLabel(
+                rf, text=result.description,
+                font=ctk.CTkFont(size=11),
+                text_color=_TEXT_DIM, anchor="w",
+                wraplength=440, justify="left",
+            ).pack(fill="x", padx=12, pady=(2, 8))
+
+        # ── Signal chain strip ────────────────────────────────────────
+        chain_lbl = ctk.CTkLabel(rf, text="Signal Chain",
+                                 font=ctk.CTkFont(size=11, weight="bold"),
+                                 text_color=_TEXT_DIM, anchor="w")
+        chain_lbl.pack(fill="x", padx=12, pady=(0, 4))
+
+        chain_outer = ctk.CTkFrame(rf, fg_color="transparent")
+        chain_outer.pack(fill="x", padx=12, pady=(0, 6))
+
+        for i, blk in enumerate(result.blocks):
+            cat   = blk.get("category", "")
+            color = _CAT_COLOR.get(cat, "#4A90D9")
+            badge = _CAT_BADGE.get(cat, "•")
+
+            card = ctk.CTkFrame(chain_outer, fg_color=color,
+                                corner_radius=6)
+            card.pack(side="left", padx=(0, 4))
+
+            ctk.CTkLabel(
+                card,
+                text=f"{badge} {blk.get('name', blk.get('model_id', '?'))}",
+                font=ctk.CTkFont(size=10, weight="bold"),
+                text_color="#ffffff",
+            ).pack(padx=8, pady=(5, 1))
+
+            ctk.CTkLabel(
+                card,
+                text=cat,
+                font=ctk.CTkFont(size=9),
+                text_color="#ffffffaa",
+            ).pack(padx=8, pady=(0, 5))
+
+            # Arrow between cards
+            if i < len(result.blocks) - 1:
+                ctk.CTkLabel(
+                    chain_outer, text="→",
+                    font=ctk.CTkFont(size=12), text_color=_TEXT_DIM,
+                ).pack(side="left", padx=2)
+
+        # ── Per-block explanations ────────────────────────────────────
+        expl_blocks = [b for b in result.blocks if b.get("explanation")]
+        if expl_blocks:
+            ctk.CTkLabel(rf, text="Block Notes",
+                         font=ctk.CTkFont(size=11, weight="bold"),
+                         text_color=_TEXT_DIM, anchor="w").pack(
+                fill="x", padx=12, pady=(6, 2))
+            for blk in expl_blocks:
+                cat   = blk.get("category", "")
+                color = _CAT_COLOR.get(cat, "#4A90D9")
+                row   = ctk.CTkFrame(rf, fg_color="transparent")
+                row.pack(fill="x", padx=12, pady=1)
+                ctk.CTkLabel(
+                    row,
+                    text=f"  {blk.get('name', '?')}",
+                    font=ctk.CTkFont(size=10, weight="bold"),
+                    text_color=color, width=140, anchor="w",
+                ).pack(side="left")
+                ctk.CTkLabel(
+                    row,
+                    text=blk.get("explanation", ""),
+                    font=ctk.CTkFont(size=10),
+                    text_color=_TEXT_DIM, anchor="w",
+                    wraplength=290, justify="left",
+                ).pack(side="left", padx=(4, 0))
+
+        # ── Rationale ─────────────────────────────────────────────────
+        if result.signal_chain_rationale:
+            ctk.CTkLabel(rf, text="Design Rationale",
+                         font=ctk.CTkFont(size=11, weight="bold"),
+                         text_color=_TEXT_DIM, anchor="w").pack(
+                fill="x", padx=12, pady=(6, 2))
+            ctk.CTkLabel(
+                rf, text=result.signal_chain_rationale,
+                font=ctk.CTkFont(size=10),
+                text_color=_TEXT_DIM, anchor="w",
+                wraplength=440, justify="left",
+            ).pack(fill="x", padx=12, pady=(0, 4))
+
+        # ── Action buttons ────────────────────────────────────────────
+        ctk.CTkFrame(rf, height=1, fg_color="#333333").pack(
+            fill="x", padx=0, pady=(4, 0))
+        act_frame = ctk.CTkFrame(rf, fg_color="transparent")
+        act_frame.pack(pady=8)
+
+        ctk.CTkButton(
+            act_frame, text="💾  Save .hlx…", width=130,
+            command=self._save_hlx,
+        ).pack(side="left", padx=6)
+
+        ctk.CTkButton(
+            act_frame, text="🔄  Regenerate", width=130,
+            fg_color="transparent", border_width=1, text_color=_TEXT_BRIGHT,
+            command=self._regenerate,
+        ).pack(side="left", padx=6)
+
+        ctk.CTkButton(
+            act_frame, text="Close", width=80,
+            fg_color="transparent", border_width=1, text_color=_TEXT_DIM,
+            command=self.destroy,
+        ).pack(side="left", padx=6)
+
+    # ------------------------------------------------------------------
+    # Save / Regenerate
+    # ------------------------------------------------------------------
+
+    def _save_hlx(self) -> None:
+        if self._result is None:
+            return
+        from hlx_builder import PresetCatalog, save_hlx
+        catalog  = PresetCatalog()
+        name     = self._result.preset_name
+        filepath = filedialog.asksaveasfilename(
+            title="Save .hlx Preset",
+            defaultextension=".hlx",
+            filetypes=[("HX Stomp Preset", "*.hlx"), ("All files", "*.*")],
+            initialfile=f"{name.replace(' ', '_')}.hlx",
+        )
+        if not filepath:
+            return
+        from pathlib import Path as _Path
+        dest = _Path(filepath)
+        catalog.save_preset(self._result, filepath=dest)
+        self._status_lbl.configure(
+            text=f"Saved: {dest.name}", text_color=_ACCENT)
+
+    def _regenerate(self) -> None:
+        description = self._text.get("1.0", "end").strip()
+        if not description:
+            return
+        self._status_lbl.configure(text="", text_color=_TEXT_DIM)
+        if self._result_frame is not None:
+            self._result_frame.destroy()
+            self._result_frame = None
+        self._set_loading(True)
+        threading.Thread(target=self._worker, args=(description,),
+                         daemon=True).start()
