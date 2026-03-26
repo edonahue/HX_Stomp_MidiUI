@@ -40,6 +40,24 @@ _DELAY_REVERB_CATS  = {"Delay", "Reverb"}
 # Categories where @type = 7 (trails-capable)
 _TRAILS_CATEGORIES  = {"Delay", "Reverb"}
 
+# Prefix → category mapping for fuzzy model-ID recovery
+_PREFIX_CAT: list[tuple[str, str]] = [
+    ("HD2_Amp",     "Amp"),
+    ("HD2_Reverb",  "Reverb"),
+    ("HD2_Delay",   "Delay"),
+    ("HD2_Dist",    "Distortion"),
+    ("HD2_Comp",    "Dynamics"),
+    ("HD2_Dyn",     "Dynamics"),
+    ("HD2_Gate",    "Dynamics"),
+    ("HD2_EQ",      "EQ"),
+    ("HD2_Mod",     "Modulation"),
+    ("HD2_Chorus",  "Modulation"),
+    ("HD2_Flanger", "Modulation"),
+    ("HD2_Phaser",  "Modulation"),
+    ("HD2_Rotary",  "Modulation"),
+    ("HD2_Tremolo", "Modulation"),
+]
+
 
 # ---------------------------------------------------------------------------
 # System prompt for .hlx generation
@@ -52,7 +70,8 @@ You are a guitar tone designer for the Line 6 HX Stomp.
 Respond with ONLY a JSON object — no markdown, no explanation.
 
 CRITICAL RULES:
-1. Use ONLY the exact model_id strings from the catalog below — no invented IDs
+1. Use ONLY the exact model_id strings from the catalog below — no invented IDs.
+   If unsure, pick the closest available option from the list; never invent a name.
 2. Maximum {_MAX_BLOCKS} processing blocks (HX Stomp hardware limit)
 3. Exactly ONE amp block required
 4. Signal order: Dynamics → Distortion → Amp → EQ → Modulation → Delay → Reverb
@@ -534,6 +553,58 @@ def _match_gear_hints(description: str) -> list[str]:
     return hints
 
 
+def _fuzzy_recover_model_id(unknown_id: str) -> tuple[HXModel | None, str]:
+    """
+    Attempt to recover a hallucinated model_id by token-matching against the
+    catalog.  Returns (matched_model, display_name) or (None, reason).
+
+    Steps:
+      1. Infer category from the ID prefix (HD2_Amp* → Amp, etc.)
+      2. Extract the name fragment after the prefix and tokenize camel-case words
+         ("FenderDeluxeNrm" → ["fender", "deluxe"])
+      3. Score each category candidate:
+           +2 per token found in model.name
+           +3 per token found in any model.alias
+      4. Return the highest-scoring model if score >= 2, else None.
+    """
+    candidates = list(ALL_MODELS.values())
+    fragment   = unknown_id
+    for prefix, cat in _PREFIX_CAT:
+        if unknown_id.startswith(prefix):
+            candidates = [m for m in ALL_MODELS.values() if m.category == cat]
+            fragment   = unknown_id[len(prefix):]   # strip "HD2_Amp", "HD2_Delay", etc.
+            break
+    else:
+        # No prefix matched — strip only "HD2_" so tokens don't include the literal prefix
+        fragment = unknown_id.split("_", 1)[-1] if "_" in unknown_id else unknown_id
+    tokens = [
+        t.lower()
+        for t in re.findall(r"[A-Z][a-z]+|[A-Z]+(?=[A-Z]|$)|[a-z]+", fragment)
+        if len(t) > 2
+    ]
+    if not tokens:
+        return None, "no tokens extracted"
+
+    best_score, best_model = 0, None
+    for model in candidates:
+        score = 0
+        name_lower = model.name.lower()
+        for tok in tokens:
+            if tok in name_lower:
+                score += 2
+        for alias in model.aliases:
+            alias_lower = alias.lower()
+            for tok in tokens:
+                if tok in alias_lower:
+                    score += 3
+        if score > best_score:
+            best_score, best_model = score, model
+
+    if best_model and best_score >= 2:
+        return best_model, best_model.name
+    return None, "no confident match"
+
+
 def generate_hlx_preset(description: str, provider) -> PresetResult:
     """
     Ask the LLM to design an HX Stomp preset for the given description.
@@ -585,15 +656,24 @@ def generate_hlx_preset(description: str, provider) -> PresetResult:
 
             total_raw = len(raw_blocks)
 
-            # Validate model IDs; track skipped unknowns
-            valid_blocks: list[dict] = []
-            skipped_ids: list[str]   = []
+            # Validate model IDs; try fuzzy recovery before discarding unknowns
+            valid_blocks:  list[dict] = []
+            skipped_ids:   list[str]  = []
+            recovered_ids: list[str]  = []
             for blk in raw_blocks:
                 mid = str(blk.get("model_id", ""))
                 if mid in ALL_MODELS:
                     valid_blocks.append(blk)
                 else:
-                    skipped_ids.append(mid or "<empty>")
+                    recovered, note = _fuzzy_recover_model_id(mid)
+                    if recovered:
+                        blk = {**blk, "model_id": recovered.model_id}
+                        valid_blocks.append(blk)
+                        recovered_ids.append(
+                            f"'{mid}' \u2192 {recovered.model_id} ({note})"
+                        )
+                    else:
+                        skipped_ids.append(mid or "<empty>")
 
             # Track blocks truncated beyond the 6-block limit
             truncated = max(0, len(valid_blocks) - _MAX_BLOCKS)
@@ -646,6 +726,8 @@ def generate_hlx_preset(description: str, provider) -> PresetResult:
 
             # Accumulate all generation warnings
             gen_warnings: list[str] = []
+            for r in recovered_ids:
+                gen_warnings.append(f"Auto-recovered: {r}")
             if skipped_ids:
                 ids_str  = ", ".join(skipped_ids[:3])
                 ellipsis = "…" if len(skipped_ids) > 3 else ""
