@@ -2,8 +2,9 @@
 
 A dark-themed Python desktop soundboard for the **Line 6 HX Stomp** (and other
 Helix-family processors). Click a tone card to instantly switch presets, bank-select,
-and load a snapshot — all via MIDI. Describe a tone in plain English and let an AI
-suggest the name, color, and category.
+and load a snapshot — all via MIDI. Describe a tone in plain English and let an AI suggest the name, color, and
+category — or generate a complete `.hlx` preset file with real amp and effect
+models ready to import into HX Edit.
 
 ![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
@@ -14,7 +15,8 @@ suggest the name, color, and category.
 - One-click preset + snapshot switching via USB MIDI
 - Responsive card grid with custom colors and categories
 - Collapsible Live Controls panel — tap tempo, snapshot nav, looper transport
-- AI-assisted preset labeling — describe a sound, get a suggested name, color, and category (metadata only)
+- AI-assisted preset labeling — describe a sound, get a suggested name, color, and category
+- AI preset generation — describe a tone or artist, receive a complete `.hlx` file with amp, cab, and effects ready for HX Edit
 - Fully usable without hardware via `--mock-midi` mode
 
 ---
@@ -38,7 +40,7 @@ sudo apt install libasound2-dev libjack-dev
 sudo dnf install alsa-lib-devel jack-audio-connection-kit-devel
 ```
 
-**Optional — AI-assisted preset labeling**
+**Optional — AI features (labeling + preset generation)**
 
 One of: an Anthropic, OpenAI, or Google API key, or
 [Ollama](https://ollama.com) running locally (free, no account needed).
@@ -187,8 +189,8 @@ AI suggest the name, card color, category, and snapshot index.
 >   way to know what sound is in any slot on your specific HX Stomp
 > - It does not create or modify `.hlx` preset files
 >
-> True preset creation (generating an `.hlx` file with real amp and effect model
-> selections) is planned for a future release — see [Roadmap](#roadmap).
+> To generate a full preset with real amp and effect model selections, use
+> **[📦 AI Preset Generation (.hlx)](#ai-preset-generation-hlx)** instead.
 
 ### How to Use
 
@@ -222,6 +224,52 @@ GOOGLE_API_KEY=AIza...        python main.py
 ```
 
 When the key is set in the environment, no dialog configuration is needed.
+
+---
+
+## AI Preset Generation (.hlx)
+
+The **📦 Preset** feature generates a complete `.hlx` preset file from a
+plain-English tone description or artist name.  The AI selects real HX Stomp
+amp, cab, and effect models from a curated catalog, sets starting parameters,
+and explains every choice.  No device connection required — the file is
+imported into HX Edit offline.
+
+### How to Use
+
+1. Click **📦 Preset** in the toolbar or **Tones → 📦 Generate Preset (.hlx)…**
+2. Configure your provider (same as labeling — see [Providers](#providers) above)
+3. Describe a tone or artist, e.g.:
+   - *"bluesy SRV crunch with tape delay and spring reverb"*
+   - *"dark ambient shoegaze with shimmer reverb and chorus"*
+   - *"tight metal rhythm tone, Mesa-style, no reverb"*
+   - *"clean Vox AC30 jangle like The Edge"*
+4. Click **📦 Generate Preset** — the AI runs in the background
+5. Review the result panel:
+   - Signal chain strip showing each block in order
+   - Per-block explanation of why each model was chosen
+   - Overall design rationale
+6. Click **💾 Save .hlx…** to save the preset file
+7. Import into **HX Edit**: drag onto an empty preset slot or use
+   **File → Import Preset…**, then send to device
+
+Click **🔄 Regenerate** to try again with the same description.
+
+### What Gets Generated
+
+| Item | Notes |
+|------|-------|
+| Amp + matched cab | One amp block with best-match default cab |
+| Effect chain | Up to 5 blocks: distortion, dynamics, EQ, modulation, delay, reverb |
+| Signal chain order | Dynamics → Drive → Amp → EQ → Mod → Delay → Reverb |
+| Starting parameters | Sane defaults; tune further in HX Edit |
+| Explanations | Per-block and overall rationale shown in the UI |
+| Catalog file | `~/.hxstomp/presets/catalog.json` — all generated presets with metadata |
+
+> **Note:** Snapshots, footswitch assignments, and MIDI controller mappings are
+> not generated — set those up in HX Edit after importing.
+
+For full details, tips, and troubleshooting → **[docs/HLX_GENERATION.md](docs/HLX_GENERATION.md)**
 
 ---
 
@@ -374,31 +422,27 @@ hx_stomp_midiui/
 ├── midi_interface.py    HXStompMidi — all CC constants and MIDI methods
 ├── tone_manager.py      Tone dataclass, JSON persistence, CRUD
 ├── soundboard_ui.py     Full UI — SoundboardApp, dialogs, LiveControlPanel
-├── llm_generator.py     AI providers, GenerateToneDialog, config helpers
+├── llm_generator.py     AI providers, GenerateToneDialog, GeneratePresetDialog
+├── hx_models.py         HX Stomp amp/cab/effect model catalog (52 models)
+├── hlx_builder.py       .hlx file construction, PresetCatalog, generate_hlx_preset()
 ├── presets.json         Default tone library (edit freely)
 ├── requirements.txt     Python dependencies
 └── docs/
     ├── MIDI_REFERENCE.md   Complete CC map and bank/preset addressing
-    └── LLM_PROVIDERS.md    Step-by-step setup for each AI provider
+    ├── LLM_PROVIDERS.md    Step-by-step setup for each AI provider
+    └── HLX_GENERATION.md   .hlx preset generation guide
 ```
 
 ---
 
 ## Roadmap
 
-### Planned: .hlx Preset Generation
-
-The next major feature will generate a complete `.hlx` preset file — the JSON
-format that **Line 6 HX Edit** imports — containing real amp and effect model
-selections, routing, and parameter values.
-
-Unlike the current labeling feature, this will produce a full, loadable preset:
-you describe a tone, the AI chooses from a catalog of known HX Stomp model IDs,
-and the app constructs a valid `.hlx` file you can drag into HX Edit and push
-to the device.
-
-This does not require a connected device or MIDI — it works entirely offline once
-the `.hlx` file is generated.
+- **Direct device loading** — explore sending `.hlx` presets to the HX Stomp
+  without needing HX Edit as an intermediary (requires research into Line 6
+  SysEx or USB HID protocol)
+- **Model catalog expansion** — add more amp and effect models as community
+  documentation grows
+- **Snapshot generation** — generate distinct snapshot states within a preset
 
 ---
 
