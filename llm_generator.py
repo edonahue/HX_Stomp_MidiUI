@@ -1029,3 +1029,267 @@ class GeneratePresetDialog(ctk.CTkToplevel):
         self._set_loading(True)
         threading.Thread(target=self._worker, args=(description,),
                          daemon=True).start()
+
+
+# ---------------------------------------------------------------------------
+# PresetCatalogDialog
+# ---------------------------------------------------------------------------
+
+class PresetCatalogDialog(ctk.CTkToplevel):
+    """
+    Browse, re-export, and delete previously generated .hlx presets.
+    Reads ~/.hxstomp/presets/catalog.json via PresetCatalog.
+    """
+
+    _ROW_H = 88   # height of each catalog row card
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title("Generated Preset Catalog")
+        self.geometry("640x520")
+        self.resizable(True, True)
+        self.grab_set()
+        self._build()
+
+    # ------------------------------------------------------------------
+    # Build
+    # ------------------------------------------------------------------
+
+    def _build(self) -> None:
+        from hlx_builder import PresetCatalog
+        self._catalog = PresetCatalog()
+
+        # ── Header bar ────────────────────────────────────────────────
+        hdr = ctk.CTkFrame(self, fg_color=_BG_TOOLBAR, corner_radius=0)
+        hdr.pack(fill="x")
+
+        ctk.CTkLabel(
+            hdr,
+            text="Generated Presets",
+            font=ctk.CTkFont(size=14, weight="bold"),
+            text_color=_TEXT_BRIGHT,
+        ).pack(side="left", padx=14, pady=10)
+
+        ctk.CTkButton(
+            hdr, text="↺  Refresh", width=90,
+            fg_color="transparent", border_width=1, text_color=_TEXT_BRIGHT,
+            command=self._refresh,
+        ).pack(side="right", padx=8, pady=8)
+
+        # ── Scrollable list ───────────────────────────────────────────
+        self._scroll = ctk.CTkScrollableFrame(
+            self, fg_color="#1c1c1c", corner_radius=0)
+        self._scroll.pack(fill="both", expand=True)
+
+        # ── Footer ────────────────────────────────────────────────────
+        footer = ctk.CTkFrame(self, fg_color=_BG_TOOLBAR, corner_radius=0,
+                              height=44)
+        footer.pack(fill="x", side="bottom")
+        footer.pack_propagate(False)
+
+        self._footer_lbl = ctk.CTkLabel(
+            footer, text="", font=ctk.CTkFont(size=11),
+            text_color=_TEXT_DIM, anchor="w")
+        self._footer_lbl.pack(side="left", padx=14)
+
+        ctk.CTkButton(
+            footer, text="Close", width=80,
+            fg_color="transparent", border_width=1, text_color=_TEXT_DIM,
+            command=self.destroy,
+        ).pack(side="right", padx=8, pady=8)
+
+        self._render_list()
+
+    # ------------------------------------------------------------------
+    # List rendering
+    # ------------------------------------------------------------------
+
+    def _render_list(self) -> None:
+        for w in self._scroll.winfo_children():
+            w.destroy()
+
+        entries = self._catalog.list_presets()
+
+        if not entries:
+            ctk.CTkLabel(
+                self._scroll,
+                text="No generated presets yet.\n\n"
+                     "Use  📦 Preset  to generate your first .hlx file.",
+                font=ctk.CTkFont(size=12),
+                text_color=_TEXT_DIM,
+                justify="center",
+            ).pack(expand=True, pady=60)
+            self._footer_lbl.configure(text="0 presets")
+            return
+
+        self._footer_lbl.configure(
+            text=f"{len(entries)} preset{'s' if len(entries) != 1 else ''}")
+
+        for entry in entries:
+            self._build_row(entry)
+
+    def _build_row(self, entry: dict) -> None:
+        filename = entry.get("filename", "")
+        name     = entry.get("preset_name", filename)
+        desc     = entry.get("description", "")
+        created  = entry.get("created", "")
+        blocks   = entry.get("blocks", [])
+        rationale = entry.get("signal_chain_rationale", "")
+
+        # Outer card
+        card = ctk.CTkFrame(self._scroll, fg_color="#252525",
+                            corner_radius=8)
+        card.pack(fill="x", padx=10, pady=(6, 0))
+
+        # ── Top row: name + date + actions ────────────────────────────
+        top = ctk.CTkFrame(card, fg_color="transparent")
+        top.pack(fill="x", padx=10, pady=(8, 2))
+
+        ctk.CTkLabel(
+            top,
+            text=name,
+            font=ctk.CTkFont(size=13, weight="bold"),
+            text_color=_TEXT_BRIGHT, anchor="w",
+        ).pack(side="left")
+
+        # Date — trim to date only
+        date_str = created[:10] if created else ""
+        if date_str:
+            ctk.CTkLabel(
+                top, text=date_str,
+                font=ctk.CTkFont(size=10), text_color=_TEXT_DIM,
+            ).pack(side="left", padx=(8, 0))
+
+        # Action buttons (right-aligned)
+        ctk.CTkButton(
+            top, text="🗑", width=30, height=24,
+            fg_color="transparent", hover_color="#3a1515",
+            text_color="#e74c3c", font=ctk.CTkFont(size=12),
+            command=lambda fn=filename: self._remove(fn),
+        ).pack(side="right", padx=(4, 0))
+
+        ctk.CTkButton(
+            top, text="💾  Export…", width=90, height=24,
+            fg_color="transparent", border_width=1,
+            text_color=_TEXT_BRIGHT, font=ctk.CTkFont(size=11),
+            command=lambda e=entry: self._export(e),
+        ).pack(side="right", padx=(4, 0))
+
+        ctk.CTkButton(
+            top, text="📂  Show", width=72, height=24,
+            fg_color="transparent", border_width=1,
+            text_color=_TEXT_BRIGHT, font=ctk.CTkFont(size=11),
+            command=lambda fn=filename: self._show_in_folder(fn),
+        ).pack(side="right", padx=(4, 0))
+
+        # ── Description ───────────────────────────────────────────────
+        if desc:
+            ctk.CTkLabel(
+                card, text=desc,
+                font=ctk.CTkFont(size=10), text_color=_TEXT_DIM,
+                anchor="w", wraplength=560, justify="left",
+            ).pack(fill="x", padx=10, pady=(0, 4))
+
+        # ── Mini signal chain strip ───────────────────────────────────
+        if blocks:
+            chain = ctk.CTkFrame(card, fg_color="transparent")
+            chain.pack(fill="x", padx=10, pady=(0, 6))
+
+            for i, blk in enumerate(blocks):
+                cat   = blk.get("category", "")
+                color = _CAT_COLOR.get(cat, "#4A90D9")
+                badge = _CAT_BADGE.get(cat, "•")
+                blk_name = blk.get("name", blk.get("model_id", "?"))
+
+                chip = ctk.CTkFrame(chain, fg_color=color, corner_radius=4)
+                chip.pack(side="left", padx=(0, 2))
+                ctk.CTkLabel(
+                    chip,
+                    text=f"{badge} {blk_name}",
+                    font=ctk.CTkFont(size=9, weight="bold"),
+                    text_color="#ffffff",
+                ).pack(padx=6, pady=(3, 3))
+
+                if i < len(blocks) - 1:
+                    ctk.CTkLabel(
+                        chain, text="→",
+                        font=ctk.CTkFont(size=10), text_color=_TEXT_DIM,
+                    ).pack(side="left", padx=1)
+
+        # ── Rationale (collapsed — shown as tooltip-style dim text) ───
+        if rationale:
+            ctk.CTkLabel(
+                card, text=rationale,
+                font=ctk.CTkFont(size=9, slant="italic"),
+                text_color="#666666", anchor="w",
+                wraplength=560, justify="left",
+            ).pack(fill="x", padx=10, pady=(0, 8))
+
+        # Bottom separator
+        ctk.CTkFrame(card, height=1, fg_color="#333333").pack(
+            fill="x", padx=0, pady=(4, 0))
+
+    # ------------------------------------------------------------------
+    # Actions
+    # ------------------------------------------------------------------
+
+    def _refresh(self) -> None:
+        from hlx_builder import PresetCatalog
+        self._catalog = PresetCatalog()
+        self._render_list()
+
+    def _show_in_folder(self, filename: str) -> None:
+        """Reveal the .hlx file in the system file manager / Finder / Explorer."""
+        import subprocess, sys
+        from hlx_builder import PresetCatalog
+        filepath = PresetCatalog._PRESETS_DIR / filename
+        if not filepath.exists():
+            self._footer_lbl.configure(
+                text=f"File not found: {filename}", text_color="#e74c3c")
+            return
+        try:
+            if sys.platform == "darwin":
+                subprocess.Popen(["open", "-R", str(filepath)])
+            elif sys.platform == "win32":
+                subprocess.Popen(["explorer", "/select,", str(filepath)])
+            else:
+                subprocess.Popen(["xdg-open", str(filepath.parent)])
+        except Exception as exc:
+            self._footer_lbl.configure(
+                text=f"Could not open folder: {exc}", text_color="#e74c3c")
+
+    def _export(self, entry: dict) -> None:
+        """Copy the .hlx file to a user-chosen location."""
+        import shutil
+        from hlx_builder import PresetCatalog
+        src = PresetCatalog._PRESETS_DIR / entry.get("filename", "")
+        if not src.exists():
+            self._footer_lbl.configure(
+                text=f"File not found: {src.name}", text_color="#e74c3c")
+            return
+        name = entry.get("preset_name", src.stem)
+        dest = filedialog.asksaveasfilename(
+            title="Export .hlx Preset",
+            defaultextension=".hlx",
+            filetypes=[("HX Stomp Preset", "*.hlx"), ("All files", "*.*")],
+            initialfile=f"{name.replace(' ', '_')}.hlx",
+        )
+        if not dest:
+            return
+        shutil.copy2(src, dest)
+        self._footer_lbl.configure(
+            text=f"Exported: {Path(dest).name}", text_color=_ACCENT)
+
+    def _remove(self, filename: str) -> None:
+        """Remove a catalog entry (keeps the file on disk)."""
+        from hlx_builder import PresetCatalog
+        import tkinter.messagebox as mb
+        if not mb.askyesno(
+            "Remove Entry",
+            f"Remove '{filename}' from the catalog?\n\n"
+            "The .hlx file is not deleted.",
+            parent=self,
+        ):
+            return
+        PresetCatalog().remove_entry(filename)
+        self._refresh()
