@@ -14,7 +14,7 @@ suggest the name, color, and category.
 - One-click preset + snapshot switching via USB MIDI
 - Responsive card grid with custom colors and categories
 - Collapsible Live Controls panel — tap tempo, snapshot nav, looper transport
-- AI tone generation from plain-English descriptions (Anthropic, OpenAI, Ollama, Gemini)
+- AI-assisted preset labeling — describe a sound, get a suggested name, color, and category (metadata only)
 - Fully usable without hardware via `--mock-midi` mode
 
 ---
@@ -38,7 +38,7 @@ sudo apt install libasound2-dev libjack-dev
 sudo dnf install alsa-lib-devel jack-audio-connection-kit-devel
 ```
 
-**Optional — AI tone generation**
+**Optional — AI-assisted preset labeling**
 
 One of: an Anthropic, OpenAI, or Google API key, or
 [Ollama](https://ollama.com) running locally (free, no account needed).
@@ -171,15 +171,24 @@ default to `0`, `0`, `0`, `#4A90D9`, and no category respectively.
 
 ---
 
-## AI Tone Generation
+## AI-Assisted Preset Labeling
 
-The **✨ Generate** feature lets you describe a tone in plain English and have an
+The **✨ Label Tone** feature lets you describe a tone in plain English and have an
 AI suggest the name, card color, category, and snapshot index.
 
 > **Important:** The AI generates *metadata only* — it does not assign a preset
 > number. Preset slots are specific to your rig (preset 10 on your HX Stomp is a
 > completely different sound from preset 10 on someone else's). You enter the
 > correct preset number yourself in the confirmation form.
+
+> **What this feature does NOT do:**
+> - It cannot configure amp models, effects, or any signal-chain parameter on the device
+> - It cannot read or write preset content — MIDI is output-only; the app has no
+>   way to know what sound is in any slot on your specific HX Stomp
+> - It does not create or modify `.hlx` preset files
+>
+> True preset creation (generating an `.hlx` file with real amp and effect model
+> selections) is planned for a future release — see [Roadmap](#roadmap).
 
 ### How to Use
 
@@ -372,6 +381,24 @@ hx_stomp_midiui/
     ├── MIDI_REFERENCE.md   Complete CC map and bank/preset addressing
     └── LLM_PROVIDERS.md    Step-by-step setup for each AI provider
 ```
+
+---
+
+## Roadmap
+
+### Planned: .hlx Preset Generation
+
+The next major feature will generate a complete `.hlx` preset file — the JSON
+format that **Line 6 HX Edit** imports — containing real amp and effect model
+selections, routing, and parameter values.
+
+Unlike the current labeling feature, this will produce a full, loadable preset:
+you describe a tone, the AI chooses from a catalog of known HX Stomp model IDs,
+and the app constructs a valid `.hlx` file you can drag into HX Edit and push
+to the device.
+
+This does not require a connected device or MIDI — it works entirely offline once
+the `.hlx` file is generated.
 
 ---
 

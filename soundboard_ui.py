@@ -613,7 +613,7 @@ class SoundboardApp(ctk.CTk):
         ctk.CTkFrame(toolbar, width=1, fg_color="#3a3a3a",
                      corner_radius=0).pack(side="left", fill="y", padx=8, pady=8)
 
-        ctk.CTkButton(toolbar, text="✨  Generate", width=110,
+        ctk.CTkButton(toolbar, text="✨  Label Tone", width=115,
                       command=self._generate_tone, **btn_opts).pack(
             side="left", padx=2, pady=6)
 
