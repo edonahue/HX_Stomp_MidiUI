@@ -626,6 +626,9 @@ _CAT_COLOR: dict[str, str] = {
     "Cab":        "#555555",
 }
 
+# Snapshot pill colors — blue / purple / green for slots 0, 1, 2
+_SNAP_COLORS: tuple[str, ...] = ("#2c5f8a", "#5a3c82", "#2e6b4f")
+
 
 class GeneratePresetDialog(ctk.CTkToplevel):
     """
@@ -639,7 +642,8 @@ class GeneratePresetDialog(ctk.CTkToplevel):
     def __init__(self, parent):
         super().__init__(parent)
         self.title("Generate HX Stomp Preset")
-        self.resizable(True, False)
+        self.resizable(False, False)
+        self.minsize(500, 340)
         self.grab_set()
 
         self._cfg     = load_config()
@@ -972,7 +976,6 @@ class GeneratePresetDialog(ctk.CTkToplevel):
                 fill="x", padx=12, pady=(6, 4))
             snap_row = ctk.CTkFrame(rf, fg_color="transparent")
             snap_row.pack(fill="x", padx=12, pady=(0, 6))
-            _SNAP_COLORS = ["#2c5f8a", "#5a3c82", "#2e6b4f"]
             for si, snap in enumerate(snaps[:3]):
                 sc = _SNAP_COLORS[si % len(_SNAP_COLORS)]
                 pill = ctk.CTkFrame(snap_row, fg_color=sc, corner_radius=6)
@@ -1082,6 +1085,7 @@ class PresetCatalogDialog(ctk.CTkToplevel):
         self.title("Generated Preset Catalog")
         self.geometry("640x520")
         self.resizable(True, True)
+        self.minsize(600, 400)
         self.grab_set()
         self._build()
 
@@ -1255,7 +1259,6 @@ class PresetCatalogDialog(ctk.CTkToplevel):
         if snaps:
             snap_row = ctk.CTkFrame(card, fg_color="transparent")
             snap_row.pack(fill="x", padx=10, pady=(0, 4))
-            _SNAP_COLORS = ["#2c5f8a", "#5a3c82", "#2e6b4f"]
             for si, snap in enumerate(snaps[:3]):
                 sc = _SNAP_COLORS[si % len(_SNAP_COLORS)]
                 pill = ctk.CTkFrame(snap_row, fg_color=sc, corner_radius=4)

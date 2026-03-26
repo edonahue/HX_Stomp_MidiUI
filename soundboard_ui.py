@@ -34,6 +34,7 @@ ctk.set_default_color_theme("blue")
 # UI chrome palette (kept minimal so tone card colors dominate)
 _BG_TOOLBAR   = "#1e1e1e"
 _BG_STATUS    = "#1a1a1a"
+_BG_MENU      = "#2b2b2b"   # tk.Menu background
 _TEXT_DIM     = "#888888"
 _TEXT_BRIGHT  = "#e0e0e0"
 _ACCENT       = "#4A90D9"
@@ -514,13 +515,13 @@ class SoundboardApp(ctk.CTk):
 
     def _build_menu(self) -> None:
         menubar = tk.Menu(self, tearoff=0,
-                          bg="#2b2b2b", fg=_TEXT_BRIGHT,
+                          bg=_BG_MENU, fg=_TEXT_BRIGHT,
                           activebackground=_ACCENT, activeforeground="#ffffff",
                           bd=0)
 
         # File
         file_menu = tk.Menu(menubar, tearoff=0,
-                            bg="#2b2b2b", fg=_TEXT_BRIGHT,
+                            bg=_BG_MENU, fg=_TEXT_BRIGHT,
                             activebackground=_ACCENT, activeforeground="#ffffff")
         file_menu.add_command(label="💾  Save",          command=self._save,
                               accelerator="Ctrl+S")
@@ -532,7 +533,7 @@ class SoundboardApp(ctk.CTk):
 
         # MIDI
         midi_menu = tk.Menu(menubar, tearoff=0,
-                            bg="#2b2b2b", fg=_TEXT_BRIGHT,
+                            bg=_BG_MENU, fg=_TEXT_BRIGHT,
                             activebackground=_ACCENT, activeforeground="#ffffff")
         midi_menu.add_command(label="⏵  Connect…",      command=self._open_connect_dialog)
         midi_menu.add_command(label="⏹  Disconnect",    command=self._disconnect)
@@ -542,7 +543,7 @@ class SoundboardApp(ctk.CTk):
         # Channel submenu
         self._chan_var = tk.IntVar(value=1)
         chan_menu = tk.Menu(midi_menu, tearoff=0,
-                            bg="#2b2b2b", fg=_TEXT_BRIGHT,
+                            bg=_BG_MENU, fg=_TEXT_BRIGHT,
                             activebackground=_ACCENT, activeforeground="#ffffff")
         for ch in range(1, 17):
             chan_menu.add_radiobutton(
@@ -555,7 +556,7 @@ class SoundboardApp(ctk.CTk):
 
         # Tones
         tones_menu = tk.Menu(menubar, tearoff=0,
-                             bg="#2b2b2b", fg=_TEXT_BRIGHT,
+                             bg=_BG_MENU, fg=_TEXT_BRIGHT,
                              activebackground=_ACCENT, activeforeground="#ffffff")
         tones_menu.add_command(label="✨  Generate Tone…",          command=self._generate_tone)
         tones_menu.add_command(label="📦  Generate Preset (.hlx)…", command=self._generate_preset)
@@ -568,7 +569,7 @@ class SoundboardApp(ctk.CTk):
 
         # View
         view_menu = tk.Menu(menubar, tearoff=0,
-                            bg="#2b2b2b", fg=_TEXT_BRIGHT,
+                            bg=_BG_MENU, fg=_TEXT_BRIGHT,
                             activebackground=_ACCENT, activeforeground="#ffffff")
         view_menu.add_checkbutton(
             label="⚡  Live Controls",
@@ -604,7 +605,7 @@ class SoundboardApp(ctk.CTk):
         ctk.CTkButton(toolbar, text="✏  Edit",   width=90,
                       command=self._edit_tone,   **btn_opts).pack(
             side="left", padx=2,      pady=6)
-        ctk.CTkButton(toolbar, text="🗑  Remove", width=100,
+        ctk.CTkButton(toolbar, text="🗑  Remove", width=90,
                       command=self._remove_tone, **btn_opts).pack(
             side="left", padx=2,      pady=6)
         ctk.CTkButton(toolbar, text="↺  Reload", width=90,
@@ -615,15 +616,15 @@ class SoundboardApp(ctk.CTk):
         ctk.CTkFrame(toolbar, width=1, fg_color="#3a3a3a",
                      corner_radius=0).pack(side="left", fill="y", padx=8, pady=8)
 
-        ctk.CTkButton(toolbar, text="✨  Label Tone", width=115,
+        ctk.CTkButton(toolbar, text="✨  Label Tone", width=105,
                       command=self._generate_tone, **btn_opts).pack(
             side="left", padx=2, pady=6)
 
-        ctk.CTkButton(toolbar, text="📦  Preset", width=100,
+        ctk.CTkButton(toolbar, text="📦  Preset", width=105,
                       command=self._generate_preset, **btn_opts).pack(
             side="left", padx=2, pady=6)
 
-        ctk.CTkButton(toolbar, text="📋  Catalog", width=95,
+        ctk.CTkButton(toolbar, text="📋  Catalog", width=105,
                       command=self._open_catalog, **btn_opts).pack(
             side="left", padx=2, pady=6)
 
@@ -719,7 +720,7 @@ class SoundboardApp(ctk.CTk):
             outer,
             text="Add tones manually or let AI help you build your setlist.",
             font=ctk.CTkFont(size=12),
-            text_color="#555555",
+            text_color=_TEXT_DIM,
         ).pack(pady=(0, 24))
 
         steps = [
@@ -825,7 +826,7 @@ class SoundboardApp(ctk.CTk):
 
         # Right-click context menu
         ctx = tk.Menu(self, tearoff=0,
-                      bg="#2b2b2b", fg=_TEXT_BRIGHT,
+                      bg=_BG_MENU, fg=_TEXT_BRIGHT,
                       activebackground=_ACCENT, activeforeground="#ffffff")
         ctx.add_command(label="✏  Edit",   command=lambda t=tone: self._edit_tone(t))
         ctx.add_command(label="🗑  Remove", command=lambda t=tone: self._remove_tone(t))

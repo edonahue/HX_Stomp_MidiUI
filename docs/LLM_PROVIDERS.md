@@ -1,10 +1,9 @@
 # LLM Providers — Setup Guide
 
-This guide covers configuring each supported AI provider for the
-**✨ Generate Tone** feature.
-
-The app can use any of four providers. You only need to set up one.
-Provider choice and credentials are stored in `~/.hxstomp/config.json`
+This guide covers configuring each supported AI provider for both
+**✨ Label Tone** (tone metadata) and **📦 Generate Preset** (.hlx file
+generation). You only need to configure one provider — it is shared by both
+features. Provider choice and credentials are stored in `~/.hxstomp/config.json`
 and persist between sessions.
 
 ---

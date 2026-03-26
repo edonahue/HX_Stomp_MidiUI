@@ -126,7 +126,12 @@ class ToneManager:
 
     def load(self) -> None:
         with open(self.filepath, "r", encoding="utf-8") as f:
-            data = json.load(f)
+            try:
+                data = json.load(f)
+            except json.JSONDecodeError as exc:
+                raise ValueError(
+                    f"Could not parse {self.filepath}: {exc}"
+                ) from exc
         self._tones = [Tone.from_dict(d) for d in data]
         print(f"[ToneManager] Loaded {len(self._tones)} tones from {self.filepath}")
 

@@ -94,6 +94,7 @@ Each run is independent — the AI may make different choices.
 | Cab model | Paired automatically with the amp (best-match default) |
 | Effect blocks | Up to 5 additional blocks: distortion, dynamics, EQ, modulation, delay, reverb |
 | Signal chain order | Follows convention: dynamics → drive → amp → EQ → mod → delay → reverb |
+| Three named snapshots | Distinct bypass states per snapshot (e.g. Rhythm / Lead / Clean) |
 | Parameter values | Starting values; tweak further in HX Edit |
 | Per-block explanations | Why each model was chosen |
 | Design rationale | Overall chain philosophy |
@@ -102,7 +103,7 @@ Each run is independent — the AI may make different choices.
 
 | Not Generated | Reason |
 |---------------|--------|
-| Snapshot parameter overrides | All 3 snapshots have identical starting state; customise in HX Edit |
+| Snapshot parameter values | Block bypass states are set per snapshot; knob/parameter value overrides require HX Edit |
 | Footswitch assignments | Assign FS1–FS3 in HX Edit as desired |
 | Controller (MIDI CC) mappings | Set up in HX Edit |
 | IR loader blocks | Requires an IR file on your device; not generated |
@@ -112,16 +113,16 @@ Each run is independent — the AI may make different choices.
 
 ## Available Models
 
-The catalog (`hx_models.py`) includes approximately 50 models across categories:
+The catalog (`hx_models.py`) includes 71 models across categories:
 
 | Category | Count | Examples |
 |----------|-------|---------|
-| Amp | 12 | US Double Nrm, A30 Fawn Nrm, Brit Plexi Nrm, Cali Rectifire |
-| Cab | 8 | 2x12 Blue Bell, 4x12 Greenback 25, 4x12 Cali V30 |
-| Distortion | 8 | Scream 808, Minotaur, Vermin Dist, Arbitrator Fuzz |
-| Delay | 6 | Simple Delay, Transistor Tape, Elephant Man, Ping Pong |
-| Reverb | 6 | Plate, 63 Spring, Room, Hall, Ganymede, Searchlights |
-| Modulation | 5 | Chorus, Tremolo, Gray Flanger, Script Mod Phase, Rotary |
+| Amp | 19 | US Double Nrm, A30 Fawn Nrm, Brit Plexi Nrm, Cali Rectifire, Revv Gen Red, Das Benzin |
+| Cab | 11 | 2x12 Blue Bell, 4x12 Greenback 25, 4x12 Cali V30, 4x12 Brit Basket |
+| Distortion | 10 | Scream 808, Minotaur, Vermin Dist, Arbitrator Fuzz, Pillars OD |
+| Delay | 8 | Simple Delay, Transistor Tape, Elephant Man, Cosmos Echo, Reverse Delay |
+| Reverb | 9 | Plate, 63 Spring, Hall, Ganymede, Octo, Cave, Plateaux |
+| Modulation | 7 | Chorus, Tremolo, Gray Flanger, UniVibe, CE-1 Chorus |
 | Dynamics | 4 | Red Squeeze, Deluxe Comp, Kinky Comp, Noise Gate |
 | EQ | 3 | Parametric, Low/High Cut, 10 Band |
 
