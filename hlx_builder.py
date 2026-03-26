@@ -511,6 +511,29 @@ def _strip_fences(text: str) -> str:
     return text.strip()
 
 
+def _match_gear_hints(description: str) -> list[str]:
+    """
+    Case-insensitive substring scan of the user description against all
+    model aliases.  Returns hint strings ready for injection into the LLM
+    user message, e.g. "'Tube Screamer' → HD2_DistScream808 (Scream 808)".
+    One hint per model (first matching alias wins).
+    """
+    desc_lower = description.lower()
+    seen_ids: set[str] = set()
+    hints: list[str] = []
+    for model in ALL_MODELS.values():
+        if not model.aliases or model.model_id in seen_ids:
+            continue
+        for alias in model.aliases:
+            if alias.lower() in desc_lower:
+                hints.append(
+                    f"'{alias}' \u2192 {model.model_id} ({model.name})"
+                )
+                seen_ids.add(model.model_id)
+                break
+    return hints
+
+
 def generate_hlx_preset(description: str, provider) -> PresetResult:
     """
     Ask the LLM to design an HX Stomp preset for the given description.
@@ -526,13 +549,23 @@ def generate_hlx_preset(description: str, provider) -> PresetResult:
     system_prompt = _build_system_prompt()
     last_exc: Exception | None = None
 
+    # Pre-match real-world gear names to model_ids before the first API call
+    hints = _match_gear_hints(description)
+    base_msg = description
+    if hints:
+        base_msg = (
+            description
+            + "\n\nGear Match Hints — use these model_ids for the gear named above:\n"
+            + "\n".join(f"- {h}" for h in hints)
+        )
+
     for attempt in range(2):
         try:
             # On retry, prepend a context hint so weaker models know what failed
-            user_msg = description
+            user_msg = base_msg
             if attempt > 0 and last_exc is not None:
                 user_msg = (
-                    f"{description}\n\n"
+                    f"{base_msg}\n\n"
                     f"Note: previous attempt failed ({last_exc}). "
                     "Return ONLY a JSON object — no markdown, no prose. "
                     "Use ONLY model_ids from the catalog."

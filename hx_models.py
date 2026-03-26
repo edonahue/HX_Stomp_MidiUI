@@ -23,6 +23,7 @@ class HXModel:
     description:    str         # one-line tone character for LLM prompt
     default_params: dict        # sane starting values (most knobs 0.0-1.0)
     paired_cab:     str = ""    # best-match cab model_id (amps only)
+    aliases:        list[str] = field(default_factory=list)  # real-world gear names
 
 
 # ---------------------------------------------------------------------------
@@ -39,6 +40,7 @@ AMP_MODELS: list[HXModel] = [
                           "Master": 0.80, "ChVol": 1.0, "Sag": 0.50, "Bias": 0.50,
                           "BiasX": 0.50, "Hum": 0.50, "Ripple": 0.50},
         paired_cab  = "HD2_CabMicIr_2x12DoubleC12N",
+        aliases     = ["Fender Twin", "Twin Reverb", "blackface twin"],
     ),
     HXModel(
         model_id    = "HD2_AmpUSSmallTweed",
@@ -49,6 +51,7 @@ AMP_MODELS: list[HXModel] = [
                           "Master": 0.75, "ChVol": 1.0, "Sag": 0.60,
                           "Bias": 0.55, "BiasX": 0.50, "Hum": 0.50, "Ripple": 0.50},
         paired_cab  = "HD2_CabMicIr_1x12USDeluxe",
+        aliases     = ["Fender Deluxe", "Deluxe Reverb", "5E3"],
     ),
     HXModel(
         model_id    = "HD2_AmpTweedBluesBrt",
@@ -59,6 +62,7 @@ AMP_MODELS: list[HXModel] = [
                           "Master": 0.80, "ChVol": 1.0, "Sag": 0.55,
                           "Bias": 0.55, "BiasX": 0.50, "Hum": 0.50, "Ripple": 0.50},
         paired_cab  = "HD2_CabMicIr_4x10TweedP10R",
+        aliases     = ["Fender Bassman", "Bassman", "5F6"],
     ),
     HXModel(
         model_id    = "HD2_AmpMatchstickCh1",
@@ -69,6 +73,7 @@ AMP_MODELS: list[HXModel] = [
                           "Master": 0.75, "ChVol": 1.0, "Sag": 0.50,
                           "Bias": 0.50, "BiasX": 0.50, "Hum": 0.50, "Ripple": 0.50},
         paired_cab  = "HD2_CabMicIr_2x12BlueBell",
+        aliases     = ["Matchless DC30", "DC-30", "Matchless"],
     ),
     HXModel(
         model_id    = "HD2_AmpA30FawnNrm",
@@ -79,6 +84,7 @@ AMP_MODELS: list[HXModel] = [
                           "Master": 0.75, "ChVol": 1.0, "Sag": 0.50,
                           "Bias": 0.50, "BiasX": 0.50, "Hum": 0.50, "Ripple": 0.50},
         paired_cab  = "HD2_CabMicIr_2x12BlueBell",
+        aliases     = ["Vox AC30", "AC30", "AC-30"],
     ),
     HXModel(
         model_id    = "HD2_AmpBritPlexiNrm",
@@ -90,6 +96,7 @@ AMP_MODELS: list[HXModel] = [
                           "Sag": 0.50, "Bias": 0.50, "BiasX": 0.50,
                           "Hum": 0.50, "Ripple": 0.50},
         paired_cab  = "HD2_CabMicIr_4x12Greenback25",
+        aliases     = ["Marshall Plexi", "Super Lead", "1959SLP"],
     ),
     HXModel(
         model_id    = "HD2_AmpBritPlexiBrt",
@@ -101,6 +108,7 @@ AMP_MODELS: list[HXModel] = [
                           "Sag": 0.50, "Bias": 0.50, "BiasX": 0.50,
                           "Hum": 0.50, "Ripple": 0.50},
         paired_cab  = "HD2_CabMicIr_4x12Greenback25",
+        aliases     = ["Marshall Plexi Bright", "Plexi Bright"],
     ),
     HXModel(
         model_id    = "HD2_AmpBritJ45Nrm",
@@ -112,6 +120,7 @@ AMP_MODELS: list[HXModel] = [
                           "Sag": 0.50, "Bias": 0.50, "BiasX": 0.50,
                           "Hum": 0.50, "Ripple": 0.50},
         paired_cab  = "HD2_CabMicIr_4x12Greenback25",
+        aliases     = ["Marshall JCM800", "JCM 800", "JMP", "2203", "2204"],
     ),
     HXModel(
         model_id    = "HD2_AmpPlacaterDirty",
@@ -123,6 +132,7 @@ AMP_MODELS: list[HXModel] = [
                           "Sag": 0.35, "Bias": 0.50, "BiasX": 0.50,
                           "Hum": 0.50, "Ripple": 0.50},
         paired_cab  = "HD2_CabMicIr_4x12CaliV30",
+        aliases     = ["Friedman BE-100", "BE100", "Friedman"],
     ),
     HXModel(
         model_id    = "HD2_AmpCaliRectifire",
@@ -134,6 +144,7 @@ AMP_MODELS: list[HXModel] = [
                           "Sag": 0.40, "Bias": 0.50, "BiasX": 0.50,
                           "Hum": 0.50, "Ripple": 0.50},
         paired_cab  = "HD2_CabMicIr_4x12CaliV30",
+        aliases     = ["Mesa Boogie", "Dual Rectifier", "Mesa Recto", "Rectifier"],
     ),
     HXModel(
         model_id    = "HD2_AmpPVPanama",
@@ -145,6 +156,7 @@ AMP_MODELS: list[HXModel] = [
                           "Sag": 0.35, "Bias": 0.55, "BiasX": 0.55,
                           "Hum": 0.50, "Ripple": 0.50},
         paired_cab  = "HD2_CabMicIr_4x12XXLV30",
+        aliases     = ["Peavey 5150", "EVH 5150", "5150", "6505"],
     ),
     HXModel(
         model_id    = "HD2_AmpLine6Litigator",
@@ -167,6 +179,7 @@ AMP_MODELS: list[HXModel] = [
                           "Sag": 0.35, "Bias": 0.50, "BiasX": 0.50,
                           "Hum": 0.50, "Ripple": 0.50},
         paired_cab  = "HD2_CabMicIr_4x12CaliV30",
+        aliases     = ["Revv Generator", "Revv Gen", "Revv 120"],
     ),
     HXModel(
         model_id    = "HD2_AmpDasBenzin",
@@ -178,6 +191,7 @@ AMP_MODELS: list[HXModel] = [
                           "Sag": 0.30, "Bias": 0.50, "BiasX": 0.50,
                           "Hum": 0.50, "Ripple": 0.50},
         paired_cab  = "HD2_CabMicIr_4x12XXLV30",
+        aliases     = ["Diezel Herbert", "Diezel VH4", "Diezel"],
     ),
     HXModel(
         model_id    = "HD2_AmpVoltageQueen",
@@ -188,6 +202,7 @@ AMP_MODELS: list[HXModel] = [
                           "Master": 0.80, "ChVol": 1.0, "Sag": 0.60,
                           "Bias": 0.50, "BiasX": 0.50, "Hum": 0.50, "Ripple": 0.50},
         paired_cab  = "HD2_CabMicIr_1x12USDeluxe",
+        aliases     = ["Victoria 35115", "Victoria"],
     ),
     HXModel(
         model_id    = "HD2_AmpSoupPro",
@@ -198,6 +213,7 @@ AMP_MODELS: list[HXModel] = [
                           "Master": 0.75, "ChVol": 1.0, "Sag": 0.60,
                           "Bias": 0.55, "BiasX": 0.50, "Hum": 0.50, "Ripple": 0.50},
         paired_cab  = "HD2_CabMicIr_1x12Fullerton",
+        aliases     = ["Supro Thunderbolt", "Supro"],
     ),
     HXModel(
         model_id    = "HD2_AmpMailOrderTwin",
@@ -208,6 +224,7 @@ AMP_MODELS: list[HXModel] = [
                           "Master": 0.70, "ChVol": 1.0, "Sag": 0.55,
                           "Bias": 0.50, "BiasX": 0.50, "Hum": 0.50, "Ripple": 0.50},
         paired_cab  = "HD2_CabMicIr_2x12DoubleC12N",
+        aliases     = ["Silvertone 1484", "Silvertone"],
     ),
     HXModel(
         model_id    = "HD2_AmpInterstateZed",
@@ -219,6 +236,7 @@ AMP_MODELS: list[HXModel] = [
                           "Sag": 0.50, "Bias": 0.50, "BiasX": 0.50,
                           "Hum": 0.50, "Ripple": 0.50},
         paired_cab  = "HD2_CabMicIr_2x12BlueBell",
+        aliases     = ["Dr. Z Z-Wreck", "Dr Z", "Z-Wreck"],
     ),
     HXModel(
         model_id    = "HD2_AmpDividedDuo",
@@ -229,6 +247,7 @@ AMP_MODELS: list[HXModel] = [
                           "Master": 0.70, "ChVol": 1.0, "Sag": 0.55,
                           "Bias": 0.50, "BiasX": 0.50, "Hum": 0.50, "Ripple": 0.50},
         paired_cab  = "HD2_CabMicIr_4x12Greenback25",
+        aliases     = ["Divided by 13", "DB13", "JRT"],
     ),
 ]
 
@@ -340,6 +359,7 @@ DISTORTION_MODELS: list[HXModel] = [
         category    = "Distortion",
         description = "Ibanez Tube Screamer. Mid-boost, smooth overdrive. Blues and rock.",
         default_params = {"Drive": 0.50, "Tone": 0.50, "Level": 0.60},
+        aliases     = ["Tube Screamer", "TS808", "TS-808", "TS9", "Ibanez TS"],
     ),
     HXModel(
         model_id    = "HD2_DistMinotaur",
@@ -347,6 +367,7 @@ DISTORTION_MODELS: list[HXModel] = [
         category    = "Distortion",
         description = "Klon Centaur. Transparent drive, adds harmonic shimmer. Low-to-mid gain.",
         default_params = {"Gain": 0.45, "Tone": 0.50, "Level": 0.65},
+        aliases     = ["Klon Centaur", "Klon", "Centaur"],
     ),
     HXModel(
         model_id    = "HD2_DistTeemah",
@@ -354,6 +375,7 @@ DISTORTION_MODELS: list[HXModel] = [
         category    = "Distortion",
         description = "Paul Cochrane Timmy. Transparent, musical breakup. Touch-sensitive.",
         default_params = {"Drive": 0.50, "Bass": 0.50, "Treble": 0.50, "Level": 0.60},
+        aliases     = ["Timmy", "Paul Cochrane Timmy"],
     ),
     HXModel(
         model_id    = "HD2_DistKinkyBoost",
@@ -361,6 +383,7 @@ DISTORTION_MODELS: list[HXModel] = [
         category    = "Distortion",
         description = "Xotic EP Booster. Clean boost with musical EQ. Adds dimension.",
         default_params = {"Gain": 0.35, "Level": 0.70},
+        aliases     = ["EP Booster", "Xotic EP"],
     ),
     HXModel(
         model_id    = "HD2_DistVerminDist",
@@ -368,6 +391,7 @@ DISTORTION_MODELS: list[HXModel] = [
         category    = "Distortion",
         description = "ProCo RAT. Hard-clipping distortion, aggressive mids. Punk and grunge.",
         default_params = {"Distortion": 0.60, "Filter": 0.50, "Level": 0.60},
+        aliases     = ["ProCo RAT", "Pro Co RAT", "RAT pedal"],
     ),
     HXModel(
         model_id    = "HD2_DistArbitratorFuzz",
@@ -375,6 +399,7 @@ DISTORTION_MODELS: list[HXModel] = [
         category    = "Distortion",
         description = "Arbiter Fuzz Face. Vintage silicon fuzz. Hendrix and psychedelic rock.",
         default_params = {"Fuzz": 0.65, "Level": 0.60},
+        aliases     = ["Fuzz Face", "Arbiter Fuzz", "Dallas Fuzz"],
     ),
     HXModel(
         model_id    = "HD2_DistRamsHead",
@@ -382,6 +407,7 @@ DISTORTION_MODELS: list[HXModel] = [
         category    = "Distortion",
         description = "EHX Big Muff Ram's Head. Thick, sustaining fuzz. Prog and shoegaze.",
         default_params = {"Sustain": 0.65, "Tone": 0.50, "Level": 0.60},
+        aliases     = ["Big Muff", "Big Muff Pi", "EHX Muff"],
     ),
     HXModel(
         model_id    = "HD2_DistHeirApparent",
@@ -389,6 +415,7 @@ DISTORTION_MODELS: list[HXModel] = [
         category    = "Distortion",
         description = "OCD overdrive. High-headroom drive, tight and punchy. Rock and metal.",
         default_params = {"Drive": 0.55, "Tone": 0.50, "Level": 0.60},
+        aliases     = ["Fulltone OCD", "OCD pedal"],
     ),
     HXModel(
         model_id    = "HD2_DistDerangedMstr",
@@ -396,6 +423,7 @@ DISTORTION_MODELS: list[HXModel] = [
         category    = "Distortion",
         description = "Dallas Rangemaster treble booster. Bright, searing boost. Classic British crunch.",
         default_params = {"Gain": 0.70, "Level": 0.60},
+        aliases     = ["Dallas Rangemaster", "Rangemaster", "treble booster"],
     ),
     HXModel(
         model_id    = "HD2_DistPillarsOD",
@@ -425,6 +453,7 @@ DELAY_MODELS: list[HXModel] = [
         category    = "Delay",
         description = "Analog tape-style delay. Warm, slightly degrading repeats. Classic rock.",
         default_params = {"Time": 0.35, "Feedback": 0.30, "Mix": 0.25, "Trails": False},
+        aliases     = ["Memory Man", "EHX Memory Man"],
     ),
     HXModel(
         model_id    = "HD2_DelayBucketBrigade",
@@ -432,6 +461,7 @@ DELAY_MODELS: list[HXModel] = [
         category    = "Delay",
         description = "BBD analog delay. Dark, modulated repeats. Vintage character.",
         default_params = {"Time": 0.30, "Feedback": 0.28, "Mix": 0.22, "Trails": False},
+        aliases     = ["BBD delay", "bucket brigade analog"],
     ),
     HXModel(
         model_id    = "HD2_DelayElephantMan",
@@ -439,6 +469,7 @@ DELAY_MODELS: list[HXModel] = [
         category    = "Delay",
         description = "Maestro Echoplex-style. Warm, musical tape echo. U2-style dotted 8th.",
         default_params = {"Time": 0.40, "Feedback": 0.35, "Mix": 0.28, "Trails": False},
+        aliases     = ["Echoplex", "Maestro Echoplex", "EP3"],
     ),
     HXModel(
         model_id    = "HD2_DelayPingPong",
@@ -460,6 +491,7 @@ DELAY_MODELS: list[HXModel] = [
         category    = "Delay",
         description = "Roland RE-201 Space Echo. Warm tape loop, modulated echoes. Vintage atmosphere.",
         default_params = {"Time": 0.40, "Feedback": 0.38, "Mix": 0.28, "Trails": False},
+        aliases     = ["Space Echo", "Roland RE-201", "RE-201"],
     ),
     HXModel(
         model_id    = "HD2_DelayReverse",
@@ -567,6 +599,7 @@ MODULATION_MODELS: list[HXModel] = [
         category    = "Modulation",
         description = "MXR 117 flanger. Sweeping jet effect. Van Halen-style.",
         default_params = {"Rate": 0.30, "Depth": 0.60, "Mix": 0.50},
+        aliases     = ["MXR Flanger", "MXR 117", "117 Flanger"],
     ),
     HXModel(
         model_id    = "HD2_PhaserScriptModPhase",
@@ -574,6 +607,7 @@ MODULATION_MODELS: list[HXModel] = [
         category    = "Modulation",
         description = "MXR Phase 45/90 script logo. Smooth, musical phasing. Funk and classic rock.",
         default_params = {"Rate": 0.30, "Mix": 0.50},
+        aliases     = ["MXR Phase 90", "Phase 90", "Phase 45"],
     ),
     HXModel(
         model_id    = "HD2_Rotary145Rotary",
@@ -581,6 +615,7 @@ MODULATION_MODELS: list[HXModel] = [
         category    = "Modulation",
         description = "Leslie 145 rotary speaker. Doppler-effect wobble. Organ-like, ambient.",
         default_params = {"Speed": 0.40, "Mix": 0.70},
+        aliases     = ["Leslie 145", "Leslie", "rotary speaker"],
     ),
     HXModel(
         model_id    = "HD2_ModUniVibe",
@@ -588,6 +623,7 @@ MODULATION_MODELS: list[HXModel] = [
         category    = "Modulation",
         description = "Uni-Vibe chorus/vibrato. Watery, pulsing effect. Hendrix and psychedelic.",
         default_params = {"Speed": 0.40, "Depth": 0.60, "Mix": 0.60},
+        aliases     = ["Uni-Vibe", "Univibe", "Shin-ei Univibe"],
     ),
     HXModel(
         model_id    = "HD2_ModCE1Chorus",
@@ -595,6 +631,7 @@ MODULATION_MODELS: list[HXModel] = [
         category    = "Modulation",
         description = "Roland CE-1 chorus. Thick, lush analog chorus. 80s clean and crunch.",
         default_params = {"Rate": 0.35, "Depth": 0.55, "Mix": 0.50},
+        aliases     = ["Roland CE-1", "CE-1", "CE1"],
     ),
 ]
 
@@ -610,6 +647,7 @@ DYNAMICS_MODELS: list[HXModel] = [
         category    = "Dynamics",
         description = "MXR Dyna Comp. Poppy, pronounced squish. Country and funk.",
         default_params = {"Sustain": 0.50, "Level": 0.65, "Attack": 0.40},
+        aliases     = ["Dyna Comp", "MXR Dyna Comp", "MXR compressor"],
     ),
     HXModel(
         model_id    = "HD2_CompressorDeluxeComp",
@@ -624,6 +662,7 @@ DYNAMICS_MODELS: list[HXModel] = [
         category    = "Dynamics",
         description = "Xotic SP compressor. Subtle, studio-style. Adds sustain without squishing.",
         default_params = {"Comp": 0.40, "Attack": 0.40, "Mix": 1.0},
+        aliases     = ["Xotic SP", "SP Compressor"],
     ),
     HXModel(
         model_id    = "HD2_GateNoiseGate",
@@ -721,5 +760,6 @@ def catalog_for_prompt(categories: list[str] | None = None) -> str:
             continue
         lines.append(f"\n## {cat}s" if cat != "EQ" else "\n## EQ")
         for m in models:
-            lines.append(f"- {m.model_id} | {m.name} | {m.description}")
+            alias_str = f" | {', '.join(m.aliases)}" if m.aliases else ""
+            lines.append(f"- {m.model_id} | {m.name}{alias_str} | {m.description}")
     return "\n".join(lines).strip()
