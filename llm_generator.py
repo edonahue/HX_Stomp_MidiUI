@@ -478,11 +478,14 @@ class GenerateToneDialog(ctk.CTkToplevel):
         # Hint — explains what the LLM generates vs what the user must supply
         ctk.CTkLabel(
             self,
-            text="AI suggests name, color, category, and snapshot.\n"
-                 "You'll set the preset number in the next step — it maps to your specific rig.",
+            text="AI suggests a name, card color, category, and snapshot index "
+                 "for your soundboard grid.\n"
+                 "You'll enter the preset number in the next step — it's specific "
+                 "to your rig. To generate a full .hlx preset file with amp and "
+                 "effects, use 📦 Preset instead.",
             font=ctk.CTkFont(size=10),
             text_color=_TEXT_DIM,
-            anchor="w", justify="left",
+            anchor="w", justify="left", wraplength=440,
         ).pack(fill="x", padx=14, pady=(2, 6))
 
         # Progress bar (created but not packed; shown during loading)
@@ -729,9 +732,11 @@ class GeneratePresetDialog(ctk.CTkToplevel):
         # Hint
         ctk.CTkLabel(
             self,
-            text="The AI selects amp and effect models from the HX Stomp catalog "
-                 "and explains each choice.\nSave the resulting .hlx file, then "
-                 "import it into HX Edit to load onto your Stomp.",
+            text="The AI selects amp, cab, and effect models from the HX Stomp "
+                 "catalog, sets starting parameters, and creates three named "
+                 "snapshots (e.g. Rhythm / Lead / Clean).\n"
+                 "Save the resulting .hlx file, then import it into HX Edit "
+                 "to load onto your Stomp.",
             font=ctk.CTkFont(size=10),
             text_color=_TEXT_DIM,
             anchor="w", justify="left", wraplength=460,

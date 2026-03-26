@@ -683,6 +683,11 @@ class SoundboardApp(ctk.CTk):
         self._card_frames.clear()
 
         by_cat = self._tones.tones_by_category()
+
+        if not by_cat:
+            self._render_empty_state()
+            return
+
         row_offset = 0
 
         for cat, tones in by_cat.items():
@@ -697,6 +702,51 @@ class SoundboardApp(ctk.CTk):
                 self._scroll.columnconfigure(card_col, weight=1)
 
             row_offset += (len(tones) + self._cols - 1) // self._cols
+
+    def _render_empty_state(self) -> None:
+        """Show a helpful guide when no tones have been added yet."""
+        outer = ctk.CTkFrame(self._scroll, fg_color="transparent")
+        outer.grid(row=0, column=0, padx=20, pady=60)
+
+        ctk.CTkLabel(
+            outer,
+            text="No tones yet",
+            font=ctk.CTkFont(size=18, weight="bold"),
+            text_color=_TEXT_DIM,
+        ).pack(pady=(0, 6))
+
+        ctk.CTkLabel(
+            outer,
+            text="Add tones manually or let AI help you build your setlist.",
+            font=ctk.CTkFont(size=12),
+            text_color="#555555",
+        ).pack(pady=(0, 24))
+
+        steps = [
+            ("⊕  Add Tone",           "Open the Add Tone form and enter a preset number from your HX Stomp."),
+            ("✨  Label Tone",          "Describe a sound in plain English — AI suggests name, color, and category."),
+            ("📦  Generate Preset",     "Describe a tone or artist — AI builds a complete .hlx file with amp and effects."),
+            ("MIDI → Connect…",         "Connect your HX Stomp via USB to send presets and snapshots live."),
+        ]
+        for action, detail in steps:
+            row_frame = ctk.CTkFrame(outer, fg_color="#252525", corner_radius=8)
+            row_frame.pack(fill="x", pady=3, ipadx=8, ipady=6)
+
+            ctk.CTkLabel(
+                row_frame,
+                text=action,
+                font=ctk.CTkFont(size=11, weight="bold"),
+                text_color=_TEXT_BRIGHT,
+                width=160, anchor="w",
+            ).pack(side="left", padx=(12, 8))
+
+            ctk.CTkLabel(
+                row_frame,
+                text=detail,
+                font=ctk.CTkFont(size=11),
+                text_color=_TEXT_DIM,
+                anchor="w",
+            ).pack(side="left", padx=(0, 12))
 
     def _render_category_separator(self, cat: str, row: int) -> None:
         frame = ctk.CTkFrame(self._scroll, fg_color="transparent", height=28)
