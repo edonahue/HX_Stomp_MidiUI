@@ -90,7 +90,10 @@ CRITICAL RULES:
    Assign positions 0, 1, 2… in this order — position 0 is first in the chain.
 5. Preset name: max 16 chars, title case. Snapshot names: max 12 chars.
 6. Parameter values: most knobs 0.0–1.0; Level/Gain in dB (e.g. -3.0);
-   HighCut/LowCut in Hz (e.g. 8000.0); Threshold in negative dB (e.g. -65.0)
+   HighCut/LowCut in Hz (e.g. 8000.0); Threshold in negative dB (e.g. -65.0).
+   Sane starting ranges: Amp Drive 0.3–0.7; Reverb Mix 0.10–0.35; Delay Feedback
+   0.30–0.55, Mix 0.20–0.40; Bass/Mid/Treble 0.40–0.60 (0.5 = flat). ChVol is the
+   amp's output level for volume matching across presets (0.5–0.8 typical).
 7. Parameter names are case-sensitive abbreviations. Common amp params: Drive,
    Bass, Mid, Treble, Presence, Master, ChVol. Effect params: Drive, Tone, Level,
    Mix, Rate, Depth, Decay, Feedback, Time. Use only names visible in the catalog.
@@ -98,7 +101,11 @@ CRITICAL RULES:
 AVAILABLE MODELS — use ONLY these model_ids:
 {catalog}
 
-SNAPSHOTS: Define exactly 3 named snapshots (e.g. Rhythm / Lead / Clean).
+SNAPSHOTS: Define exactly 3 named snapshots matching the musical style:
+- Rock/high-gain: Rhythm / Lead / Ambient  (or Crunch / Lead / Clean)
+- Worship/ambient: Clean / Drive / Ambient  (or Verse / Chorus / Ambient)
+- Blues/roots: Clean / Overdrive / Lead
+Adjust names to match the requested tone. Each name ≤ 12 chars.
 Per snapshot: state which blocks are active (true) or bypassed (false).
 The amp block should almost always stay active.
 
@@ -206,7 +213,7 @@ def _make_block(model: HXModel, position: int, enabled: bool,
         "@no_snapshot_bypass": False,
     }
     if model.category in _TRAILS_CATEGORIES:
-        blk["@trails"] = False
+        blk["@trails"] = True
     if cab_key:
         blk["@cab"] = cab_key
     blk.update(merged)
