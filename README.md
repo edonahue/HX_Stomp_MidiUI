@@ -54,13 +54,12 @@ python -m venv .venv
 source .venv/bin/activate      # Linux / macOS
 .venv\Scripts\activate         # Windows
 
-# Install core dependencies
+# Install core dependencies (includes Anthropic Claude, the default AI provider)
 pip install -r requirements.txt
 
-# Optional: install an AI provider package
-pip install anthropic              # Anthropic Claude (default)
-# pip install openai               # OpenAI GPT
-# pip install google-generativeai  # Google Gemini
+# Optional: install an alternative AI provider
+# pip install openai                # OpenAI GPT
+# pip install google-generativeai   # Google Gemini
 # Ollama requires no Python package — see docs/LLM_PROVIDERS.md
 ```
 
@@ -79,7 +78,10 @@ python main.py --mock-midi
 python main.py --list-ports
 ```
 
-After launch, open **MIDI → Connect…** to connect to your device.
+After launch the app opens to the **🎸 HLX Generator** tab — describe a tone,
+configure your AI provider once, and generate a ready-to-import `.hlx` preset.
+Click the **🎵 Soundboard** tab to manage tone cards and connect to your HX Stomp via MIDI
+(**MIDI → Connect…** to select your port).
 
 ---
 
@@ -274,7 +276,8 @@ The file is imported into HX Edit offline; no device connection needed.
 
 #### How to Use
 
-1. Click **📦 Preset** in the toolbar or **Tones → 📦 Generate Preset (.hlx)…**
+1. Open the **🎸 HLX Generator** tab — it is the default tab on launch.
+   From the Soundboard tab: **Tones → 🎸 Open HLX Generator**.
 2. Configure your provider if not already set
 3. Describe the tone, e.g.:
    - *"bluesy SRV crunch with tape delay and spring reverb"*
@@ -311,8 +314,9 @@ Full guide, tips, and troubleshooting →
 ### 📋 Preset Catalog
 
 All generated presets are saved to `~/.hxstomp/presets/` and tracked in
-`catalog.json`. Open the browser via **📋 Catalog** in the toolbar or
-**Tones → 📋 Preset Catalog…**.
+`catalog.json`. The **Preset Catalog** panel sits in the lower half of the
+**🎸 HLX Generator** tab, below the generation workspace. It updates automatically
+after each save.
 
 Each catalog entry shows the preset name, date, description, signal chain
 strip, snapshot names, and design rationale. From there you can:

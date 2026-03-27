@@ -67,12 +67,16 @@ python main.py --api-key sk-ant-...
 
 The key is written to `~/.hxstomp/config.json` and reused on every launch.
 
-**Option C — In-app dialog**
+**Option C — In-app (HLX Generator tab)**
 
-1. Click **✨ Generate** in the toolbar
+1. Launch the app — the **🎸 HLX Generator** tab opens by default
 2. Click **⚙ Configure…** next to the provider dropdown
-3. Paste the key in the **API Key** field
-4. Click **Save**
+3. Paste the key in the **API Key** field → **Save**
+
+**Option C — In-app (Label Tone)**
+
+1. Click **✨ Label Tone** in the Soundboard toolbar
+2. Click **⚙ Configure…** → paste key → **Save**
 
 ### Model Selection
 
@@ -114,7 +118,9 @@ python main.py --llm-provider openai
 python main.py --llm-provider openai --api-key sk-...
 ```
 
-**In-app:** Click ✨ Generate → switch dropdown to **OpenAI (GPT)** → ⚙ Configure… → paste key → Save
+**In-app (HLX tab):** Open the **🎸 HLX Generator** tab → switch dropdown to **OpenAI (GPT)** → ⚙ Configure… → paste key → Save
+
+**In-app (Label Tone):** Click **✨ Label Tone** in the toolbar → switch to **OpenAI (GPT)** → ⚙ Configure… → paste key → Save
 
 ### Model Selection
 
@@ -154,7 +160,9 @@ python main.py --llm-provider gemini
 python main.py --llm-provider gemini --api-key AIza...
 ```
 
-**In-app:** Click ✨ Generate → switch dropdown to **Google Gemini** → ⚙ Configure… → paste key → Save
+**In-app (HLX tab):** Open the **🎸 HLX Generator** tab → switch dropdown to **Google Gemini** → ⚙ Configure… → paste key → Save
+
+**In-app (Label Tone):** Click **✨ Label Tone** in the toolbar → switch to **Google Gemini** → ⚙ Configure… → paste key → Save
 
 ### Model Selection
 
@@ -209,12 +217,14 @@ The server listens on `http://localhost:11434` by default.
 
 ### Configure in the App
 
-1. Click ✨ Generate
-2. Switch the **Provider** dropdown to **Ollama (local)**
-3. Click **⚙ Configure…**
-4. **Base URL**: `http://localhost:11434` (leave as default unless running remotely)
-5. **Model**: `llama3.2` (or any model you have pulled)
-6. Click **Save**
+**In the HLX Generator tab (default on launch):**
+1. Switch the **Provider** dropdown to **Ollama (local)**
+2. Click **⚙ Configure…**
+3. **Base URL**: `http://localhost:11434` (leave as default unless running remotely)
+4. **Model**: `llama3.2` (or any model you have pulled)
+5. Click **Save**
+
+**Or via Label Tone:** Click **✨ Label Tone** in the Soundboard toolbar → switch dropdown to **Ollama (local)** → ⚙ Configure… → set Base URL and Model → Save
 
 No API key warning will appear — Ollama never requires one.
 
@@ -235,7 +245,7 @@ Provider selection is saved automatically whenever you change it in the dialog.
 Each provider's key and model are stored independently — you can switch back and
 forth without re-entering credentials.
 
-**In-app:** Click ✨ Generate → change the **Provider** dropdown
+**In-app:** Open the **🎸 HLX Generator** tab (or click **✨ Label Tone**) → change the **Provider** dropdown
 
 **CLI:**
 ```bash

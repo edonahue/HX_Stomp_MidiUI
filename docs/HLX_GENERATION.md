@@ -30,10 +30,11 @@ explains why each was selected.
 
 ## Step-by-Step Usage
 
-### 1. Open the dialog
+### 1. Open the HLX Generator
 
-- Toolbar: click **📦 Preset**
-- Menu: **Tones → 📦 Generate Preset (.hlx)…**
+The **🎸 HLX Generator** tab is the default view — it opens automatically on launch.
+
+From the **🎵 Soundboard** tab you can also switch via **Tones → 🎸 Open HLX Generator**.
 
 ### 2. Configure your AI provider (first time only)
 

@@ -323,6 +323,13 @@ class ProviderConfigDialog(ctk.CTkToplevel):
 
         self._fields: dict[str, tk.StringVar] = {}
 
+        _KEY_SOURCES = {
+            "anthropic": "Get a key at console.anthropic.com → API Keys",
+            "openai":    "Get a key at platform.openai.com → API Keys",
+            "gemini":    "Get a free key at aistudio.google.com → Get API Key",
+            "ollama":    "No key needed — just run: ollama serve",
+        }
+
         if cls.requires_key:
             ctk.CTkLabel(self, text="API Key", anchor="w", width=90).grid(
                 row=row, column=0, sticky="w", **pad)
@@ -341,6 +348,16 @@ class ProviderConfigDialog(ctk.CTkToplevel):
             self._fields["base_url"] = var
             ctk.CTkEntry(self, textvariable=var, width=280).grid(
                 row=row, column=1, **pad)
+            row += 1
+
+        hint = _KEY_SOURCES.get(provider_name, "")
+        if hint:
+            ctk.CTkLabel(
+                self, text=hint,
+                font=ctk.CTkFont(size=10), text_color=_TEXT_DIM,
+                anchor="w", wraplength=300, justify="left",
+            ).grid(row=row, column=0, columnspan=2, sticky="w",
+                   padx=12, pady=(0, 4))
             row += 1
 
         ctk.CTkLabel(self, text="Model", anchor="w", width=90).grid(
