@@ -341,10 +341,9 @@ class TestContrastColor(unittest.TestCase):
         # #ffff00 luminance ≈ 237 → > 128 → black
         self.assertEqual(_contrast_color("#ffff00"), "#000000")
 
-    def test_invalid_hex_raises(self):
-        # Function only checks length, not hex validity — invalid chars raise ValueError
-        with self.assertRaises(ValueError):
-            _contrast_color("#xyz123")
+    def test_invalid_hex_returns_white(self):
+        # Invalid hex chars (length-6 but non-hex digits) now safely return white
+        self.assertEqual(_contrast_color("#xyz123"), "#ffffff")
 
     def test_too_short_hex_returns_white(self):
         self.assertEqual(_contrast_color("#fff"), "#ffffff")

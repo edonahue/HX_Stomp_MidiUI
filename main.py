@@ -21,7 +21,7 @@ import argparse
 import sys
 
 import soundboard_ui
-from midi_interface import HXStompMidi
+from midi_interface import HXStompMidi, _FS_CC
 from soundboard_ui import SoundboardApp
 
 
@@ -97,6 +97,8 @@ class MockHXStompMidi:
         print(f"[MockMIDI] Preset → bank({bank_msb},{bank_lsb})  PC {preset}")
 
     def select_snapshot(self, snapshot: int) -> None:
+        if snapshot not in range(10):
+            raise ValueError(f"Snapshot must be 0–9 (got {snapshot})")
         labels = {8: "next", 9: "previous"}
         label = labels.get(snapshot, str(snapshot + 1))
         print(f"[MockMIDI] Snapshot → {label}")
@@ -115,17 +117,27 @@ class MockHXStompMidi:
     # Footswitches -----------------------------------------------------
 
     def press_footswitch(self, fs: int) -> None:
+        if fs not in _FS_CC:
+            valid = sorted(_FS_CC)
+            raise ValueError(
+                f"Invalid footswitch {fs}. Valid: {valid} (FS6 does not exist)")
         print(f"[MockMIDI] FS{fs} press (toggle block)")
 
     def release_footswitch(self, fs: int) -> None:
+        if fs not in _FS_CC:
+            raise ValueError(f"Invalid footswitch {fs}.")
         print(f"[MockMIDI] FS{fs} release")
 
     # Expression pedals ------------------------------------------------
 
     def set_exp1(self, value: int) -> None:
+        if not 0 <= value <= 127:
+            raise ValueError(f"EXP value must be 0–127 (got {value})")
         print(f"[MockMIDI] EXP1 → {value}")
 
     def set_exp2(self, value: int) -> None:
+        if not 0 <= value <= 127:
+            raise ValueError(f"EXP value must be 0–127 (got {value})")
         print(f"[MockMIDI] EXP2 → {value}")
 
     def set_exp_toe(self, engaged: bool) -> None:

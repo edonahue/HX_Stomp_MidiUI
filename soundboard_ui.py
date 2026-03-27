@@ -85,7 +85,10 @@ def _contrast_color(hex_color: str) -> str:
     h = hex_color.lstrip("#")
     if len(h) != 6:
         return "#ffffff"
-    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    try:
+        r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    except ValueError:
+        return "#ffffff"
     return "#000000" if (0.299 * r + 0.587 * g + 0.114 * b) > 128 else "#ffffff"
 
 
@@ -94,7 +97,10 @@ def _adjust_brightness(hex_color: str, factor: float = 0.80) -> str:
     h = hex_color.lstrip("#")
     if len(h) != 6:
         return hex_color
-    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    try:
+        r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    except ValueError:
+        return hex_color
     r, g, b = (max(0, min(255, int(c * factor))) for c in (r, g, b))
     return f"#{r:02x}{g:02x}{b:02x}"
 
@@ -103,9 +109,12 @@ def _muted_color(fg: str, bg: str, alpha: float = 0.55) -> str:
     """Blend `fg` toward `bg` to produce a muted variant for subtitle text."""
     def ch(h: str, i: int) -> int:
         return int(h.lstrip("#")[i:i + 2], 16)
-    r = int(ch(fg, 0) * alpha + ch(bg, 0) * (1 - alpha))
-    g = int(ch(fg, 2) * alpha + ch(bg, 2) * (1 - alpha))
-    b = int(ch(fg, 4) * alpha + ch(bg, 4) * (1 - alpha))
+    try:
+        r = int(ch(fg, 0) * alpha + ch(bg, 0) * (1 - alpha))
+        g = int(ch(fg, 2) * alpha + ch(bg, 2) * (1 - alpha))
+        b = int(ch(fg, 4) * alpha + ch(bg, 4) * (1 - alpha))
+    except ValueError:
+        return fg
     return f"#{r:02x}{g:02x}{b:02x}"
 
 
