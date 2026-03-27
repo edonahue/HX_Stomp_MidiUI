@@ -58,6 +58,18 @@ _PREFIX_CAT: list[tuple[str, str]] = [
     ("HD2_Tremolo", "Modulation"),
 ]
 
+# Expected left-to-right position rank for signal chain order validation
+_CHAIN_RANK: dict[str, int] = {
+    "Dynamics":   0,
+    "Distortion": 1,
+    "Amp":        2,
+    "EQ":         3,
+    "Modulation": 4,
+    "Delay":      5,
+    "Reverb":     6,
+    "Cab":        7,  # internally paired with Amp; not user-positioned
+}
+
 
 # ---------------------------------------------------------------------------
 # System prompt for .hlx generation
@@ -75,9 +87,13 @@ CRITICAL RULES:
 2. Maximum {_MAX_BLOCKS} processing blocks (HX Stomp hardware limit)
 3. Exactly ONE amp block required
 4. Signal order: Dynamics → Distortion → Amp → EQ → Modulation → Delay → Reverb
+   Assign positions 0, 1, 2… in this order — position 0 is first in the chain.
 5. Preset name: max 16 chars, title case. Snapshot names: max 12 chars.
 6. Parameter values: most knobs 0.0–1.0; Level/Gain in dB (e.g. -3.0);
    HighCut/LowCut in Hz (e.g. 8000.0); Threshold in negative dB (e.g. -65.0)
+7. Parameter names are case-sensitive abbreviations. Common amp params: Drive,
+   Bass, Mid, Treble, Presence, Master, ChVol. Effect params: Drive, Tone, Level,
+   Mix, Rate, Depth, Decay, Feedback, Time. Use only names visible in the catalog.
 
 AVAILABLE MODELS — use ONLY these model_ids:
 {catalog}
@@ -207,12 +223,40 @@ def _make_cab(cab_model: HXModel) -> dict:
     }
 
 
+def _fuzzy_param_key(unknown: str, known_keys: list[str]) -> str | None:
+    """
+    Attempt to match an LLM-provided parameter name to a known key.
+
+    Pass 1 — case-insensitive exact          ('channelvolume' → 'ChannelVolume')
+    Pass 2 — substring either direction      ('Vol' → 'ChVol', 'Mid' → 'MiddleFreq')
+    Pass 3 — any camelCase token of known key appears in unknown (≥3 chars)
+             ('ChannelVolume' → 'ChVol' because 'vol' from ChVol ⊆ 'channelvolume')
+
+    Returns the first matching known key, or None.
+    """
+    u = unknown.lower()
+    for k in known_keys:
+        if k.lower() == u:
+            return k
+    for k in known_keys:
+        kl = k.lower()
+        if kl in u or u in kl:
+            return k
+    for k in known_keys:
+        k_toks = [t.lower() for t in re.findall(r"[A-Z][a-z]+|[A-Z]+", k) if len(t) >= 3]
+        if any(tok in u for tok in k_toks):
+            return k
+    return None
+
+
 def _sanitize_params(model: HXModel, raw_params: dict) -> tuple[dict, list[str]]:
     """
     Validate and clamp LLM-provided parameter values against the model's
     default_params schema.
 
-    - Unknown keys (not in default_params) are stripped.
+    - Unknown keys are first attempted via _fuzzy_param_key rescue (catches
+      abbreviations like ChannelVolume → ChVol, Vol → ChVol).
+    - Truly unknown keys (no fuzzy match) are stripped with a warning.
     - Values are clamped to a range inferred from key name and default:
         • "Cut" / "Freq" in name → Hz range [20.0, 20_000.0]
         • "hreshold" in name     → dB range [-80.0, 0.0]
@@ -223,22 +267,37 @@ def _sanitize_params(model: HXModel, raw_params: dict) -> tuple[dict, list[str]]
     """
     warnings: list[str] = []
     cleaned: dict = {}
+    known_keys = list(model.default_params.keys())
 
-    # Report unknown keys in one consolidated warning
-    unknown = [k for k in raw_params if k not in model.default_params]
-    if unknown:
-        keys_str = ", ".join(unknown[:5])
-        suffix = "…" if len(unknown) > 5 else ""
+    # Attempt fuzzy rescue on unknown keys before stripping
+    rescued_raw: dict = {}   # unknown keys mapped to their rescued canonical key
+    truly_unknown: list[str] = []
+    for k in raw_params:
+        if k in model.default_params:
+            continue  # already known; handled in main loop
+        matched = _fuzzy_param_key(k, known_keys)
+        if matched and matched not in raw_params:
+            # Only rescue if the canonical key wasn't already provided by LLM
+            rescued_raw[matched] = raw_params[k]
+            warnings.append(f"{model.name}: '{k}' substituted as '{matched}'")
+        else:
+            truly_unknown.append(k)
+
+    if truly_unknown:
+        keys_str = ", ".join(truly_unknown[:5])
+        suffix = "…" if len(truly_unknown) > 5 else ""
         warnings.append(
             f"{model.name}: unknown param(s) ignored: {keys_str}{suffix}"
         )
 
     for key, default in model.default_params.items():
-        if key not in raw_params:
+        if key in raw_params:
+            raw_val = raw_params[key]
+        elif key in rescued_raw:
+            raw_val = rescued_raw[key]
+        else:
             cleaned[key] = default
             continue
-
-        raw_val = raw_params[key]
 
         # Boolean params — cast, no numeric clamping
         if isinstance(default, bool):
@@ -675,6 +734,22 @@ def generate_hlx_preset(description: str, provider) -> PresetResult:
                     else:
                         skipped_ids.append(mid or "<empty>")
 
+            # Check signal chain category order (warn only, do not reorder)
+            order_warnings: list[str] = []
+            prev_rank, prev_label = -1, ""
+            for blk in valid_blocks:
+                mdl  = ALL_MODELS[blk["model_id"]]
+                rank = _CHAIN_RANK.get(mdl.category, 99)
+                if rank < prev_rank:
+                    order_warnings.append(
+                        f"Signal order: '{mdl.name} ({mdl.category})' at pos "
+                        f"{blk.get('position', '?')} follows '{prev_label}' — "
+                        "chain may not sound as intended"
+                    )
+                if rank != 7:  # don't track Cab (auto-paired, not user-positioned)
+                    prev_rank  = rank
+                    prev_label = f"{mdl.name} ({mdl.category})"
+
             # Track blocks truncated beyond the 6-block limit
             truncated = max(0, len(valid_blocks) - _MAX_BLOCKS)
             valid_blocks = valid_blocks[:_MAX_BLOCKS]
@@ -726,6 +801,7 @@ def generate_hlx_preset(description: str, provider) -> PresetResult:
 
             # Accumulate all generation warnings
             gen_warnings: list[str] = []
+            gen_warnings.extend(order_warnings)
             for r in recovered_ids:
                 gen_warnings.append(f"Auto-recovered: {r}")
             if skipped_ids:

@@ -8,9 +8,13 @@ CRITICAL RULES:
 2. Maximum 6 processing blocks (HX Stomp hardware limit)
 3. Exactly ONE amp block required
 4. Signal order: Dynamics → Distortion → Amp → EQ → Modulation → Delay → Reverb
+   Assign positions 0, 1, 2… in this order — position 0 is first in the chain.
 5. Preset name: max 16 chars, title case. Snapshot names: max 12 chars.
 6. Parameter values: most knobs 0.0–1.0; Level/Gain in dB (e.g. -3.0);
    HighCut/LowCut in Hz (e.g. 8000.0); Threshold in negative dB (e.g. -65.0)
+7. Parameter names are case-sensitive abbreviations. Common amp params: Drive,
+   Bass, Mid, Treble, Presence, Master, ChVol. Effect params: Drive, Tone, Level,
+   Mix, Rate, Depth, Decay, Feedback, Time. Use only names visible in the catalog.
 
 AVAILABLE MODELS — use ONLY these model_ids:
 ## Amps
