@@ -54,6 +54,16 @@ _TEXT_DIM    = "#888888"
 _TEXT_BRIGHT = "#e0e0e0"
 _ACCENT      = "#4A90D9"
 _BG_TOOLBAR  = "#1e1e1e"
+_BG_SURFACE  = "#1e1e1e"
+_BG_CARD     = "#252525"
+_BG_INPUT    = "#2d2d2d"
+
+_PROVIDER_COLORS: dict[str, str] = {
+    "anthropic": "#d97706",
+    "openai":    "#10a37f",
+    "gemini":    "#4285f4",
+    "ollama":    "#6366f1",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -315,10 +325,16 @@ class ProviderConfigDialog(ctk.CTkToplevel):
         pad = {"padx": 12, "pady": 6}
         row = 0
 
+        # Header row: colored badge + provider name
+        header = ctk.CTkFrame(self, fg_color="transparent")
+        header.grid(row=row, column=0, columnspan=2, sticky="w", **pad)
+        badge_color = _PROVIDER_COLORS.get(provider_name, _ACCENT)
+        ctk.CTkFrame(header, width=14, height=14, corner_radius=4,
+                     fg_color=badge_color).pack(side="left", padx=(0, 8))
         ctk.CTkLabel(
-            self, text=cls.label,
+            header, text=cls.label,
             font=ctk.CTkFont(size=14, weight="bold"), anchor="w",
-        ).grid(row=row, column=0, columnspan=2, sticky="w", **pad)
+        ).pack(side="left")
         row += 1
 
         self._fields: dict[str, tk.StringVar] = {}
@@ -723,6 +739,12 @@ class HLXWorkspacePanel(ctk.CTkFrame):
         ctk.CTkLabel(prov_frame, text="Provider:", width=70,
                      anchor="w").pack(side="left")
 
+        # Status dot — colored by provider brand, amber when key is missing
+        self._prov_dot = ctk.CTkLabel(
+            prov_frame, text="●", font=ctk.CTkFont(size=12),
+            text_color=_PROVIDER_COLORS.get("anthropic", _ACCENT))
+        self._prov_dot.pack(side="left", padx=(0, 4))
+
         current_label = self._name_to_label(
             self._cfg.get("provider", "anthropic"))
         self._prov_var = tk.StringVar(value=current_label)
@@ -819,19 +841,25 @@ class HLXWorkspacePanel(ctk.CTkFrame):
         model = self._cfg.get(f"{name}_model", "") or cls.default_model
         self._model_lbl.configure(text=f"using {model}")
 
+        brand_color = _PROVIDER_COLORS.get(name, _ACCENT)
+
         if cls.requires_key:
             has_key = bool(
                 self._cfg.get(f"{name}_api_key")
                 or (cls.env_var and os.environ.get(cls.env_var))
             )
             if has_key:
+                self._prov_dot.configure(text_color=brand_color)
                 self._key_warn_lbl.pack_forget()
             else:
+                self._prov_dot.configure(text_color="#e8a838")
                 self._key_warn_lbl.configure(
                     text=f"⚠  No API key for {cls.label}. "
                          f"Click ⚙ Configure… to add your key.")
                 self._key_warn_lbl.pack(fill="x", padx=14, pady=(0, 4))
         else:
+            # Ollama — no key needed, always show brand color
+            self._prov_dot.configure(text_color=brand_color)
             self._key_warn_lbl.pack_forget()
 
     def _on_provider_changed(self, label: str) -> None:
@@ -962,24 +990,34 @@ class HLXWorkspacePanel(ctk.CTkFrame):
                                 corner_radius=6)
             card.pack(side="left", padx=(0, 4))
 
+            # Emoji — large, centered
             ctk.CTkLabel(
                 card,
-                text=f"{badge} {blk.get('name', blk.get('model_id', '?'))}",
+                text=badge,
+                font=ctk.CTkFont(size=16),
+                text_color="#ffffff",
+            ).pack(padx=10, pady=(8, 1))
+
+            # Block name — bold
+            ctk.CTkLabel(
+                card,
+                text=blk.get("name", blk.get("model_id", "?")),
                 font=ctk.CTkFont(size=10, weight="bold"),
                 text_color="#ffffff",
-            ).pack(padx=8, pady=(5, 1))
+            ).pack(padx=8, pady=(0, 1))
 
+            # Category — small, muted
             ctk.CTkLabel(
                 card,
                 text=cat,
                 font=ctk.CTkFont(size=9),
                 text_color="#ffffffaa",
-            ).pack(padx=8, pady=(0, 5))
+            ).pack(padx=8, pady=(0, 8))
 
             if i < len(result.blocks) - 1:
                 ctk.CTkLabel(
-                    chain_outer, text="→",
-                    font=ctk.CTkFont(size=12), text_color=_TEXT_DIM,
+                    chain_outer, text="▸",
+                    font=ctk.CTkFont(size=12), text_color="#555555",
                 ).pack(side="left", padx=2)
 
         # ── Warnings strip (amber) ────────────────────────────────────
@@ -1241,13 +1279,24 @@ class PresetCatalogPanel(ctk.CTkFrame):
         blocks    = entry.get("blocks", [])
         rationale = entry.get("signal_chain_rationale", "")
 
-        # Outer card
-        card = ctk.CTkFrame(self._scroll, fg_color="#252525", corner_radius=8)
+        # Outer card with border
+        first_cat   = blocks[0].get("category", "") if blocks else ""
+        accent_color = _CAT_COLOR.get(first_cat, "#333333")
+        card = ctk.CTkFrame(self._scroll, fg_color="#252525", corner_radius=8,
+                            border_width=1, border_color="#333333")
         card.pack(fill="x", padx=10, pady=(6, 0))
 
+        # Left category accent strip
+        ctk.CTkFrame(card, width=4, fg_color=accent_color,
+                     corner_radius=2).pack(side="left", fill="y", padx=(2, 6), pady=4)
+
+        # Inner content frame (sits to the right of the accent strip)
+        inner = ctk.CTkFrame(card, fg_color="transparent")
+        inner.pack(side="left", fill="both", expand=True)
+
         # ── Top row: name + date + actions ────────────────────────────
-        top = ctk.CTkFrame(card, fg_color="transparent")
-        top.pack(fill="x", padx=10, pady=(8, 2))
+        top = ctk.CTkFrame(inner, fg_color="transparent")
+        top.pack(fill="x", padx=(0, 10), pady=(8, 2))
 
         ctk.CTkLabel(
             top,
@@ -1287,14 +1336,14 @@ class PresetCatalogPanel(ctk.CTkFrame):
         # ── Description ───────────────────────────────────────────────
         if desc:
             ctk.CTkLabel(
-                card, text=desc,
+                inner, text=desc,
                 font=ctk.CTkFont(size=10), text_color=_TEXT_DIM,
                 anchor="w", wraplength=560, justify="left",
             ).pack(fill="x", padx=10, pady=(0, 4))
 
         # ── Mini signal chain strip ───────────────────────────────────
         if blocks:
-            chain = ctk.CTkFrame(card, fg_color="transparent")
+            chain = ctk.CTkFrame(inner, fg_color="transparent")
             chain.pack(fill="x", padx=10, pady=(0, 6))
 
             for i, blk in enumerate(blocks):
@@ -1321,7 +1370,7 @@ class PresetCatalogPanel(ctk.CTkFrame):
         # ── Snapshot pills ────────────────────────────────────────────
         snaps = entry.get("snapshots", [])
         if snaps:
-            snap_row = ctk.CTkFrame(card, fg_color="transparent")
+            snap_row = ctk.CTkFrame(inner, fg_color="transparent")
             snap_row.pack(fill="x", padx=10, pady=(0, 4))
             for si, snap in enumerate(snaps[:3]):
                 sc   = _SNAP_COLORS[si % len(_SNAP_COLORS)]
@@ -1337,13 +1386,13 @@ class PresetCatalogPanel(ctk.CTkFrame):
         # ── Rationale ─────────────────────────────────────────────────
         if rationale:
             ctk.CTkLabel(
-                card, text=rationale,
+                inner, text=rationale,
                 font=ctk.CTkFont(size=9, slant="italic"),
                 text_color="#666666", anchor="w",
                 wraplength=560, justify="left",
             ).pack(fill="x", padx=10, pady=(0, 8))
 
-        ctk.CTkFrame(card, height=1, fg_color="#333333").pack(
+        ctk.CTkFrame(inner, height=1, fg_color="#333333").pack(
             fill="x", padx=0, pady=(4, 0))
 
     # ------------------------------------------------------------------

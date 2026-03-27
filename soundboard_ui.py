@@ -37,19 +37,38 @@ from tone_manager import Tone, ToneManager
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
-# UI chrome palette (kept minimal so tone card colors dominate)
-_BG_TOOLBAR   = "#1e1e1e"
-_BG_STATUS    = "#1a1a1a"
-_BG_MENU      = "#2b2b2b"   # tk.Menu background
+# UI chrome palette
+_BG_BASE      = "#141414"   # deepest: scroll areas, app root
+_BG_SURFACE   = "#1e1e1e"   # toolbars, headers, footers
+_BG_CARD      = "#252525"   # elevated surfaces: cards, hint boxes
+_BG_INPUT     = "#2d2d2d"   # inputs, hover targets
+_BG_MENU      = "#2b2b2b"   # tk.Menu background (kept for tk compat)
 _TEXT_DIM     = "#888888"
 _TEXT_BRIGHT  = "#e0e0e0"
 _ACCENT       = "#4A90D9"
 _COL_CONN     = "#2ecc71"   # green  — connected
 _COL_DISC     = "#e74c3c"   # red    — disconnected
+
+# Aliases for backward compat within this file
+_BG_TOOLBAR = _BG_SURFACE
+_BG_STATUS  = _BG_BASE
+
 _CARD_W       = 160
 _CARD_H       = 90
 _CARD_RADIUS  = 10
 _MIN_COLS     = 1
+
+# Category badge colors for tone cards (user-facing categories)
+_TONE_CAT_COLORS: dict[str, str] = {
+    "Clean":     "#4A90D9",
+    "Overdrive": "#e67e22",
+    "High Gain": "#c0392b",
+    "Fuzz":      "#8e44ad",
+    "Ambient":   "#16a085",
+    "Bass":      "#2980b9",
+    "Acoustic":  "#27ae60",
+    "Other":     "#666666",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -727,7 +746,7 @@ class SoundboardApp(ctk.CTk):
     # ---- Tone grid ---------------------------------------------------
 
     def _build_grid(self) -> None:
-        self._scroll = ctk.CTkScrollableFrame(self._board_tab, fg_color="#1c1c1c",
+        self._scroll = ctk.CTkScrollableFrame(self._board_tab, fg_color=_BG_BASE,
                                               corner_radius=0)
         self._scroll.pack(fill="both", expand=True)
         # Responsive column recalculation
@@ -747,22 +766,27 @@ class SoundboardApp(ctk.CTk):
         bar.pack(fill="x", side="bottom")
         bar.pack_propagate(False)
 
-        self._dot_lbl = ctk.CTkLabel(
-            bar, text="●", text_color=_COL_DISC,
-            font=ctk.CTkFont(size=14))
-        self._dot_lbl.pack(side="left", padx=(10, 4))
-
         self._active_lbl = ctk.CTkLabel(
             bar, text="No tone selected",
             font=ctk.CTkFont(size=12),
             text_color=_TEXT_DIM, anchor="w")
-        self._active_lbl.pack(side="left", fill="x", expand=True)
+        self._active_lbl.pack(side="left", fill="x", expand=True, padx=(10, 0))
 
-        self._port_lbl = ctk.CTkLabel(
-            bar, text="Not connected",
-            font=ctk.CTkFont(size=11),
-            text_color=_TEXT_DIM, anchor="e")
-        self._port_lbl.pack(side="right", padx=10)
+        # Connection pill — replaces separate dot + port label
+        self._conn_pill = ctk.CTkFrame(
+            bar, corner_radius=10, border_width=1,
+            fg_color=_BG_CARD, border_color="#333333")
+        self._conn_pill.pack(side="right", padx=(0, 10), pady=6)
+
+        self._conn_dot = ctk.CTkLabel(
+            self._conn_pill, text="●", text_color=_COL_DISC,
+            font=ctk.CTkFont(size=10))
+        self._conn_dot.pack(side="left", padx=(8, 3))
+
+        self._conn_text = ctk.CTkLabel(
+            self._conn_pill, text="Not connected",
+            font=ctk.CTkFont(size=11), text_color=_TEXT_DIM)
+        self._conn_text.pack(side="left", padx=(0, 8))
 
     # ------------------------------------------------------------------
     # Tone grid rendering
@@ -858,7 +882,7 @@ class SoundboardApp(ctk.CTk):
 
     def _render_card(self, tone: Tone, row: int, col: int) -> None:
         is_active    = tone.name == self._active
-        border_color = _ACCENT if is_active else "#1c1c1c"
+        border_color = _ACCENT if is_active else "#2a2a2a"
         fg           = _contrast_color(tone.color)
         sub_fg       = _muted_color(fg, tone.color, alpha=0.55)
         hover_color  = _adjust_brightness(tone.color)
@@ -904,12 +928,22 @@ class SoundboardApp(ctk.CTk):
         )
         sub_lbl.pack(pady=(0, 10))
 
-        # Click + hover on all three surfaces
-        def on_click(e, t=tone):   self._activate_tone(t)
-        def on_enter(e):           card.configure(fg_color=hover_color)
-        def on_leave(e):           card.configure(fg_color=tone.color)
+        # Category badge — small colored dot, top-right corner
+        badge_color = _TONE_CAT_COLORS.get(tone.category, _TONE_CAT_COLORS["Other"])
+        badge = ctk.CTkFrame(card, width=8, height=8, corner_radius=4,
+                             fg_color=badge_color)
+        badge.place(relx=1.0, rely=0.0, x=-6, y=6, anchor="ne")
 
-        for w in (card, name_lbl, sub_lbl):
+        # Click + hover on all surfaces
+        def on_click(e, t=tone):   self._activate_tone(t)
+        def on_enter(e):
+            card.configure(fg_color=hover_color)
+            wrapper.configure(fg_color=_ACCENT if (tone.name == self._active) else "#444444")
+        def on_leave(e):
+            card.configure(fg_color=tone.color)
+            wrapper.configure(fg_color=_ACCENT if (tone.name == self._active) else "#2a2a2a")
+
+        for w in (card, name_lbl, sub_lbl, badge):
             w.bind("<Button-1>", on_click)
             w.bind("<Enter>",    on_enter)
             w.bind("<Leave>",    on_leave)
@@ -962,11 +996,13 @@ class SoundboardApp(ctk.CTk):
 
     def _update_status(self) -> None:
         if self._midi.is_connected:
-            self._dot_lbl.configure(text_color=_COL_CONN)
-            self._port_lbl.configure(text=self._midi.port_name)
+            self._conn_dot.configure(text_color=_COL_CONN)
+            self._conn_text.configure(text=self._midi.port_name, text_color=_TEXT_BRIGHT)
+            self._conn_pill.configure(border_color="#2ecc7155")
         else:
-            self._dot_lbl.configure(text_color=_COL_DISC)
-            self._port_lbl.configure(text="Not connected")
+            self._conn_dot.configure(text_color=_COL_DISC)
+            self._conn_text.configure(text="Not connected", text_color=_TEXT_DIM)
+            self._conn_pill.configure(border_color="#333333")
 
     # ------------------------------------------------------------------
     # Tone actions
