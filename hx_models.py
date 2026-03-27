@@ -8,6 +8,8 @@ files and to build the LLM system prompt.
 Model IDs are community-documented (not officially published by Line 6).
 Sources: helix-preset-viewer (hxModels.js), helix-py-api, phelix, real .hlx
 files from EmmanuelBeziat/helix-presets.
+Entries marked # VERIFY should be tested against a physical device or HX Edit
+before relying on them — their model_id may not match the actual firmware.
 """
 
 from __future__ import annotations
@@ -76,7 +78,7 @@ AMP_MODELS: list[HXModel] = [
         aliases     = ["Matchless DC30", "DC-30", "Matchless"],
     ),
     HXModel(
-        model_id    = "HD2_AmpMandarin80",
+        model_id    = "HD2_AmpMandarin80",  # VERIFY against firmware
         name        = "Mandarin 80",
         category    = "Amp",
         description = "Orange AD30-style. Warm British crunch, vocal midrange. Rock and indie.",
@@ -98,7 +100,7 @@ AMP_MODELS: list[HXModel] = [
         aliases     = ["Vox AC30", "AC30", "AC-30"],
     ),
     HXModel(
-        model_id    = "HD2_AmpEssexA15",
+        model_id    = "HD2_AmpEssexA15",  # VERIFY against firmware
         name        = "Essex A15",
         category    = "Amp",
         description = "Vox AC15. Chimey, lower-output EL84 character. Sweeter breakup than the AC30.",
@@ -158,9 +160,9 @@ AMP_MODELS: list[HXModel] = [
     ),
     HXModel(
         model_id    = "HD2_AmpPlacaterNrm",
-        name        = "Placater Clean",
+        name        = "Placater Nrm",
         category    = "Amp",
-        description = "Friedman BE-100 Normal channel. Edge-of-breakup clean to crunch. Harmonically rich, very touch-sensitive.",
+        description = "Friedman BE-100 Normal channel. Edge-of-breakup clean to crunch. Touch-sensitive, harmonically rich.",
         default_params = {"Drive": 0.35, "Bass": 0.50, "Mid": 0.55, "Treble": 0.55,
                           "Presence": 0.50, "Master": 0.80, "ChVol": 1.0,
                           "Sag": 0.55, "Bias": 0.50, "BiasX": 0.50,
@@ -249,10 +251,21 @@ AMP_MODELS: list[HXModel] = [
                           "Master": 0.80, "ChVol": 1.0, "Sag": 0.60,
                           "Bias": 0.50, "BiasX": 0.50, "Hum": 0.50, "Ripple": 0.50},
         paired_cab  = "HD2_CabMicIr_1x12USDeluxe",
-        aliases     = ["Victoria 35115", "Victoria", "Fender Princeton", "Princeton Reverb"],
+        aliases     = ["Victoria 35115", "Victoria"],
     ),
     HXModel(
-        model_id    = "HD2_AmpGrammaticoNYC",
+        model_id    = "HD2_AmpUSFullertonNrm",  # VERIFY: may be HD2_AmpFullertonNrm (no US prefix)
+        name        = "Fullerton Nrm",
+        category    = "Amp",
+        description = "Fender Princeton-style. Warm, punchy clean with gentle bloom. Blues and country.",
+        default_params = {"Drive": 0.32, "Bass": 0.50, "Treble": 0.55,
+                          "Master": 0.78, "ChVol": 1.0, "Sag": 0.60,
+                          "Bias": 0.55, "BiasX": 0.50, "Hum": 0.50, "Ripple": 0.50},
+        paired_cab  = "HD2_CabMicIr_1x12Fullerton",
+        aliases     = ["Fender Princeton", "Princeton Reverb", "Princeton"],
+    ),
+    HXModel(
+        model_id    = "HD2_AmpGrammaticoNYC",  # VERIFY: may be HD2_AmpGrammaticoNyc
         name        = "Grammatico NYC",
         category    = "Amp",
         description = "Grammatico LaGrange. Open, airy clean with complex bloom. Boutique clean platform.",
@@ -497,11 +510,35 @@ DISTORTION_MODELS: list[HXModel] = [
         aliases     = ["Dallas Rangemaster", "Rangemaster", "treble booster"],
     ),
     HXModel(
-        model_id    = "HD2_DistPillarsOD",
+        model_id    = "HD2_DistPillarsOD",  # VERIFY against firmware
         name        = "Pillars OD",
         category    = "Distortion",
         description = "Line 6 original high-gain overdrive. Versatile gain stages from crunch to lead.",
         default_params = {"Drive": 0.60, "Bass": 0.50, "Treble": 0.50, "Level": 0.60},
+    ),
+    HXModel(
+        model_id    = "HD2_DistStunner808",  # VERIFY against firmware
+        name        = "Stunner 808",
+        category    = "Distortion",
+        description = "Heavier TS-variant with more gain and low-end. Modern metal rhythm boost.",
+        default_params = {"Drive": 0.60, "Tone": 0.45, "Level": 0.65},
+        aliases     = ["heavy Tube Screamer", "TS variant", "808 boost"],
+    ),
+    HXModel(
+        model_id    = "HD2_DistDeezOneVintage",  # VERIFY: may be HD2_DistDeezOneNrm or HD2_DistDeezOneVntg
+        name        = "Deez One Vintage",
+        category    = "Distortion",
+        description = "High-gain drive pedal. Tight, punchy, scooped midrange. Pairs well with high-gain amps.",
+        default_params = {"Drive": 0.65, "Bass": 0.50, "Treble": 0.50, "Level": 0.65},
+        aliases     = ["Deez One", "Wampler Sovereign", "sovereign distortion"],
+    ),
+    HXModel(
+        model_id    = "HD2_DistSplitBand",  # VERIFY: may be HD2_DistSplitband (lowercase b)
+        name        = "Splitband",
+        category    = "Distortion",
+        description = "Frequency-selective distortion processes lows and highs separately. Unique texture.",
+        default_params = {"Drive": 0.55, "Tone": 0.50, "Level": 0.62},
+        aliases     = ["split band distortion", "frequency split dist"],
     ),
 ]
 

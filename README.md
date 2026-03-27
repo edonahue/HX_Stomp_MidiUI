@@ -423,7 +423,7 @@ hx_stomp_midiui/
 ├── soundboard_ui.py     Full UI — SoundboardApp, dialogs, LiveControlPanel
 ├── llm_generator.py     AI providers, GenerateToneDialog, GeneratePresetDialog,
 │                          PresetCatalogDialog
-├── hx_models.py         HX Stomp amp/cab/effect model catalog (71 models)
+├── hx_models.py         HX Stomp amp/cab/effect model catalog (84 models)
 ├── hlx_builder.py       .hlx file construction, PresetCatalog,
 │                          generate_hlx_preset()
 ├── presets.json         Default tone library (edit freely)
@@ -441,7 +441,8 @@ hx_stomp_midiui/
 - **Direct device loading** — send `.hlx` presets to the HX Stomp without
   HX Edit as an intermediary (requires research into Line 6 SysEx or USB HID)
 - **Model catalog expansion** — add more amp and effect models as community
-  documentation grows (currently 71 models)
+  documentation grows (now 84 models across 8 categories; newer IDs marked VERIFY
+  pending hardware confirmation)
 - **Snapshot parameter control** — expose per-snapshot CC value overrides
   within generated presets (e.g. drive level, reverb mix per snapshot)
 

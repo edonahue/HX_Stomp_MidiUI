@@ -113,20 +113,22 @@ Each run is independent — the AI may make different choices.
 
 ## Available Models
 
-The catalog (`hx_models.py`) includes 71 models across categories:
+The catalog (`hx_models.py`) includes 84 models across categories:
 
 | Category | Count | Examples |
 |----------|-------|---------|
-| Amp | 19 | US Double Nrm, A30 Fawn Nrm, Brit Plexi Nrm, Cali Rectifire, Revv Gen Red, Das Benzin |
+| Amp | 26 | US Double Nrm, A30 Fawn Nrm, Brit Plexi Nrm, Cali Rectifire, Hiway 100, Das Benzin |
 | Cab | 11 | 2x12 Blue Bell, 4x12 Greenback 25, 4x12 Cali V30, 4x12 Brit Basket |
-| Distortion | 10 | Scream 808, Minotaur, Vermin Dist, Arbitrator Fuzz, Pillars OD |
+| Distortion | 13 | Scream 808, Minotaur, Vermin Dist, Arbitrator Fuzz, Pillars OD |
 | Delay | 8 | Simple Delay, Transistor Tape, Elephant Man, Cosmos Echo, Reverse Delay |
 | Reverb | 9 | Plate, 63 Spring, Hall, Ganymede, Octo, Cave, Plateaux |
-| Modulation | 7 | Chorus, Tremolo, Gray Flanger, UniVibe, CE-1 Chorus |
-| Dynamics | 4 | Red Squeeze, Deluxe Comp, Kinky Comp, Noise Gate |
+| Modulation | 9 | Chorus, Tremolo, Harmonic Tremolo, Pattern Tremolo, Gray Flanger, UniVibe |
+| Dynamics | 5 | Red Squeeze, Deluxe Comp, LA Studio Comp, Kinky Comp, Noise Gate |
 | EQ | 3 | Parametric, Low/High Cut, 10 Band |
 
-The catalog can be expanded by adding entries to `hx_models.py`.
+Newer entries are marked `# VERIFY` in the source — test against a physical device
+or HX Edit before relying on them. The catalog can be expanded by adding entries to
+`hx_models.py`.
 
 ---
 
