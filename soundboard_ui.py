@@ -5,7 +5,7 @@ Modern dark-theme soundboard UI for the HX Stomp, built with customtkinter.
 
 Layout
 ------
-  Menu bar  : File | MIDI | Tones
+  Menu bar  : File | MIDI | Tones | View | Help
   Toolbar   : ⊕ Add  ✏ Edit  🗑 Remove  ↺ Reload
   Main area : Responsive CTkScrollableFrame grid of tone cards grouped by category
   Status bar: Connection indicator pill + active tone label
@@ -13,14 +13,19 @@ Layout
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
 import time
 import tkinter as tk
+from pathlib import Path
 from tkinter import colorchooser, messagebox
 from typing import Optional
 
 import customtkinter as ctk
 
-from llm_generator import GeneratePresetDialog, GenerateToneDialog, PresetCatalogDialog
+from llm_generator import (GeneratePresetDialog, GenerateToneDialog,
+                            PresetCatalogDialog, load_config, save_config)
 from midi_interface import HXStompMidi
 from tone_manager import Tone, ToneManager
 
@@ -100,19 +105,33 @@ class ConnectDialog(ctk.CTkToplevel):
     def _build(self) -> None:
         pad = {"padx": 12, "pady": 6}
 
+        # Hardware setup hint
+        hint = ctk.CTkFrame(self, fg_color="#252525", corner_radius=6)
+        hint.grid(row=0, column=0, columnspan=2, sticky="ew", padx=12, pady=(10, 4))
+        ctk.CTkLabel(
+            hint,
+            text="① Plug the HX Stomp into USB and power it on.\n"
+                 "② Set the channel below to match the device:\n"
+                 "   Menu → Global Settings → MIDI/Tempo → MIDI Channel\n"
+                 "③ If the port doesn't appear, click ↺ Refresh.",
+            font=ctk.CTkFont(size=10),
+            text_color=_TEXT_DIM,
+            anchor="w", justify="left",
+        ).pack(padx=10, pady=8, fill="x")
+
         ctk.CTkLabel(self, text="MIDI Output Port", anchor="w").grid(
-            row=0, column=0, columnspan=2, sticky="w", **pad)
+            row=1, column=0, columnspan=2, sticky="w", **pad)
 
         self._port_var = tk.StringVar()
         self._port_cb = ctk.CTkComboBox(
             self, variable=self._port_var, width=280, state="readonly")
-        self._port_cb.grid(row=1, column=0, sticky="ew", padx=(12, 4), pady=4)
+        self._port_cb.grid(row=2, column=0, sticky="ew", padx=(12, 4), pady=4)
 
         ctk.CTkButton(self, text="↺", width=36, command=self._refresh).grid(
-            row=1, column=1, padx=(0, 12), pady=4)
+            row=2, column=1, padx=(0, 12), pady=4)
 
         ctk.CTkLabel(self, text="Channel (1–16)", anchor="w").grid(
-            row=2, column=0, columnspan=2, sticky="w", **pad)
+            row=3, column=0, columnspan=2, sticky="w", **pad)
 
         self._chan_var = tk.IntVar(value=1)
         ctk.CTkSlider(
@@ -120,13 +139,13 @@ class ConnectDialog(ctk.CTkToplevel):
             variable=self._chan_var,
             command=lambda v: self._chan_lbl.configure(
                 text=f"Channel {int(v)}")
-        ).grid(row=3, column=0, sticky="ew", padx=(12, 4), pady=4)
+        ).grid(row=4, column=0, sticky="ew", padx=(12, 4), pady=4)
 
         self._chan_lbl = ctk.CTkLabel(self, text="Channel 1", width=72)
-        self._chan_lbl.grid(row=3, column=1, padx=(0, 12))
+        self._chan_lbl.grid(row=4, column=1, padx=(0, 12))
 
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
-        btn_frame.grid(row=4, column=0, columnspan=2, pady=12)
+        btn_frame.grid(row=5, column=0, columnspan=2, pady=12)
 
         ctk.CTkButton(btn_frame, text="Connect",
                       command=self._connect).pack(side="left", padx=6)
@@ -137,13 +156,23 @@ class ConnectDialog(ctk.CTkToplevel):
     def _refresh(self) -> None:
         self._ports = HXStompMidi.list_output_ports()
         self._port_cb.configure(values=self._ports)
+        # Prefer: auto-detected HX port → saved last port → first available
         auto = HXStompMidi.find_hx_port()
+        cfg  = load_config()
+        saved_port = cfg.get("last_midi_port", "")
+        saved_chan  = int(cfg.get("last_midi_channel", 1))
         if auto:
             self._port_var.set(auto)
+        elif saved_port in self._ports:
+            self._port_var.set(saved_port)
         elif self._ports:
             self._port_var.set(self._ports[0])
         else:
             self._port_var.set("")
+        # Restore saved channel if no auto-detected HX port overrides it
+        if not auto and saved_chan != 1:
+            self._chan_var.set(saved_chan)
+            self._chan_lbl.configure(text=f"Channel {saved_chan}")
 
     def _connect(self) -> None:
         port = self._port_var.get()
@@ -151,6 +180,11 @@ class ConnectDialog(ctk.CTkToplevel):
             messagebox.showwarning("No port", "No MIDI port selected.", parent=self)
             return
         channel = int(self._chan_var.get())
+        # Persist for next session
+        cfg = load_config()
+        cfg["last_midi_port"]    = port
+        cfg["last_midi_channel"] = channel
+        save_config(cfg)
         self._on_connect(port, channel)
         self.destroy()
 
@@ -337,10 +371,10 @@ class LiveControlPanel(ctk.CTkFrame):
 
         row2 = ctk.CTkFrame(loop, fg_color="transparent")
         row2.pack(fill="x")
-        self._od_btn   = self._lbtn(row2, "⟳  OD",    self._looper_overdub)
-        self._once_btn = self._lbtn(row2, "⊙  Once",  self._looper_once)
-        self._rev_btn  = self._lbtn(row2, "↔  Rev",   self._looper_reverse)
-        self._half_btn = self._lbtn(row2, "½  ½Spd",  self._looper_half)
+        self._od_btn   = self._lbtn(row2, "⟳  Overdub",   self._looper_overdub,  width=82)
+        self._once_btn = self._lbtn(row2, "⊙  Play Once",  self._looper_once,     width=82)
+        self._rev_btn  = self._lbtn(row2, "↔  Reverse",   self._looper_reverse,  width=82)
+        self._half_btn = self._lbtn(row2, "½  Half Spd",  self._looper_half,     width=82)
 
     # ------------------------------------------------------------------
     # Connection guard
@@ -577,6 +611,21 @@ class SoundboardApp(ctk.CTk):
             command=self._toggle_live_panel)
         menubar.add_cascade(label="View", menu=view_menu)
 
+        # Help
+        help_menu = tk.Menu(menubar, tearoff=0,
+                            bg=_BG_MENU, fg=_TEXT_BRIGHT,
+                            activebackground=_ACCENT, activeforeground="#ffffff")
+        help_menu.add_command(label="📖  Getting Started…",
+                              command=self._show_getting_started)
+        help_menu.add_separator()
+        help_menu.add_command(label="MIDI Reference",
+                              command=lambda: self._open_doc("MIDI_REFERENCE.md"))
+        help_menu.add_command(label="AI Providers",
+                              command=lambda: self._open_doc("LLM_PROVIDERS.md"))
+        help_menu.add_command(label="HLX Generation",
+                              command=lambda: self._open_doc("HLX_GENERATION.md"))
+        menubar.add_cascade(label="Help", menu=help_menu)
+
         self.configure(menu=menubar)
 
         # Keyboard shortcuts
@@ -727,7 +776,7 @@ class SoundboardApp(ctk.CTk):
             ("⊕  Add Tone",           "Open the Add Tone form and enter a preset number from your HX Stomp."),
             ("✨  Label Tone",          "Describe a sound in plain English — AI suggests name, color, and category."),
             ("📦  Generate Preset",     "Describe a tone or artist — AI builds a complete .hlx file with amp and effects."),
-            ("MIDI → Connect…",         "Connect your HX Stomp via USB to send presets and snapshots live."),
+            ("MIDI → Connect…",         "Plug HX Stomp into USB, then MIDI → Connect…. Match the channel to your device: Menu → Global Settings → MIDI/Tempo → MIDI Channel."),
         ]
         for action, detail in steps:
             row_frame = ctk.CTkFrame(outer, fg_color="#252525", corner_radius=8)
@@ -1037,6 +1086,72 @@ class SoundboardApp(ctk.CTk):
             text=f"Tuner {'ON' if active else 'OFF'}",
             text_color=_COL_DISC if active else _TEXT_DIM,
         )
+
+    # ------------------------------------------------------------------
+    # Help
+    # ------------------------------------------------------------------
+
+    def _open_doc(self, filename: str) -> None:
+        """Open a file from the docs/ directory in the OS default viewer."""
+        path = Path(__file__).parent / "docs" / filename
+        if not path.exists():
+            messagebox.showinfo("Not found", f"Could not find {filename}")
+            return
+        if sys.platform == "win32":
+            os.startfile(str(path))
+        elif sys.platform == "darwin":
+            subprocess.run(["open", str(path)], check=False)
+        else:
+            subprocess.run(["xdg-open", str(path)], check=False)
+
+    def _show_getting_started(self) -> None:
+        """Modal quick-start guide covering MIDI connection and .hlx import."""
+        win = ctk.CTkToplevel(self)
+        win.title("Getting Started")
+        win.resizable(False, False)
+        win.grab_set()
+
+        def section(title: str, body: str) -> None:
+            hdr = ctk.CTkFrame(win, fg_color="#252525", corner_radius=6)
+            hdr.pack(fill="x", padx=14, pady=(10, 0))
+            ctk.CTkLabel(
+                hdr, text=title,
+                font=ctk.CTkFont(size=12, weight="bold"),
+                text_color=_TEXT_BRIGHT, anchor="w",
+            ).pack(padx=10, pady=(8, 2), fill="x")
+            ctk.CTkLabel(
+                hdr, text=body,
+                font=ctk.CTkFont(size=11),
+                text_color=_TEXT_DIM,
+                anchor="w", justify="left", wraplength=420,
+            ).pack(padx=10, pady=(0, 8), fill="x")
+
+        section(
+            "① Connect your HX Stomp",
+            "1. Plug the HX Stomp into USB and power it on.\n"
+            "2. Click MIDI → Connect… in the menu bar.\n"
+            "3. Select the port — it's auto-detected as \"HX Stomp\" if visible.\n"
+            "4. Set the channel to match the device:\n"
+            "   Menu → Global Settings → MIDI/Tempo → MIDI Channel  (default: 1)\n"
+            "5. A green ● in the status bar confirms the connection.\n\n"
+            "Tip: On Linux, add your user to the audio group if no ports appear:\n"
+            "   sudo usermod -aG audio $USER  (then log out and back in)",
+        )
+
+        section(
+            "② Load a generated preset onto your Stomp",
+            "1. Click 📦 Preset in the toolbar, describe your tone, then 💾 Save .hlx…\n"
+            "2. Install HX Edit (free) from line6.com/software if not already installed.\n"
+            "3. In HX Edit: File → Import Preset… → select the saved .hlx file.\n"
+            "4. Drag the preset to your desired slot in HX Edit.\n"
+            "5. Click the sync icon (↓ device) to transfer the preset to the Stomp.",
+        )
+
+        ctk.CTkButton(
+            win, text="Close", width=80,
+            fg_color="transparent", border_width=1, text_color=_TEXT_BRIGHT,
+            command=win.destroy,
+        ).pack(pady=12)
 
     # ------------------------------------------------------------------
     # Lifecycle

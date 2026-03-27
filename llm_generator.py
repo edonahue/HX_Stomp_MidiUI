@@ -737,10 +737,10 @@ class GeneratePresetDialog(ctk.CTkToplevel):
         ctk.CTkLabel(
             self,
             text="The AI selects amp, cab, and effect models from the HX Stomp "
-                 "catalog, sets starting parameters, and creates three named "
-                 "snapshots (e.g. Rhythm / Lead / Clean).\n"
-                 "Save the resulting .hlx file, then import it into HX Edit "
-                 "to load onto your Stomp.",
+                 "catalog, sets starting parameters, and creates three named snapshots.\n"
+                 "To load onto your Stomp:  ① In HX Edit: File → Import Preset… → select the .hlx file  "
+                 "② Drag to your desired slot  ③ Click the sync icon to transfer.\n"
+                 "HX Edit is free at line6.com/software",
             font=ctk.CTkFont(size=10),
             text_color=_TEXT_DIM,
             anchor="w", justify="left", wraplength=460,
