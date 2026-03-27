@@ -6,9 +6,9 @@ Modern dark-theme soundboard UI for the HX Stomp, built with customtkinter.
 Layout
 ------
   Menu bar  : File | MIDI | Tones | View | Help
-  Toolbar   : ⊕ Add  ✏ Edit  🗑 Remove  ↺ Reload
-  Main area : Responsive CTkScrollableFrame grid of tone cards grouped by category
-  Status bar: Connection indicator pill + active tone label
+  Tabs      : 🎸 HLX Generator (default) | 🎵 Soundboard
+  HLX tab   : AI preset workspace (description → signal chain → .hlx) + past presets
+  Board tab : Responsive tone-card grid, live controls, status bar
 """
 
 from __future__ import annotations
@@ -25,7 +25,8 @@ from typing import Optional
 import customtkinter as ctk
 
 from llm_generator import (GeneratePresetDialog, GenerateToneDialog,
-                            PresetCatalogDialog, load_config, save_config)
+                            PresetCatalogDialog, HLXWorkspacePanel,
+                            PresetCatalogPanel, load_config, save_config)
 from midi_interface import HXStompMidi
 from tone_manager import Tone, ToneManager
 
@@ -529,8 +530,8 @@ class SoundboardApp(ctk.CTk):
     def __init__(self, presets_file: str = "presets.json",
                  no_llm: bool = False):
         super().__init__()
-        self.title("HX Stomp Soundboard")
-        self.minsize(600, 480)
+        self.title("HX Stomp — Soundboard & HLX Generator")
+        self.minsize(700, 520)
 
         self._midi   = HXStompMidi()
         self._tones  = ToneManager(presets_file)
@@ -556,10 +557,42 @@ class SoundboardApp(ctk.CTk):
 
     def _build_ui(self) -> None:
         self._build_menu()
+
+        self._tabs = ctk.CTkTabview(self, corner_radius=0,
+                                     fg_color="transparent")
+        self._tabs.pack(fill="both", expand=True, padx=0, pady=0)
+
+        self._hlx_tab   = self._tabs.add("🎸  HLX Generator")
+        self._board_tab = self._tabs.add("🎵  Soundboard")
+        self._tabs.set("🎸  HLX Generator")
+
+        self._build_hlx_content()
         self._build_toolbar()
         self._build_live_panel()
         self._build_grid()
         self._build_statusbar()
+
+    def _build_hlx_content(self) -> None:
+        pane = tk.PanedWindow(self._hlx_tab, orient=tk.VERTICAL,
+                               sashwidth=5, sashrelief="flat",
+                               bg="#2a2a2a")
+        pane.pack(fill="both", expand=True)
+
+        ws_outer = ctk.CTkScrollableFrame(pane, fg_color="#1c1c1c",
+                                           corner_radius=0)
+        self._hlx_workspace = HLXWorkspacePanel(
+            ws_outer,
+            no_llm=self._no_llm,
+            on_preset_saved=self._on_hlx_preset_saved,
+        )
+        self._hlx_workspace.pack(fill="x", padx=0, pady=0)
+        pane.add(ws_outer, minsize=220, stretch="always")
+
+        self._hlx_catalog = PresetCatalogPanel(pane)
+        pane.add(self._hlx_catalog, minsize=120, stretch="always")
+
+    def _on_hlx_preset_saved(self) -> None:
+        self._hlx_catalog.refresh()
 
     # ---- Menu bar ----------------------------------------------------
 
@@ -608,9 +641,9 @@ class SoundboardApp(ctk.CTk):
         tones_menu = tk.Menu(menubar, tearoff=0,
                              bg=_BG_MENU, fg=_TEXT_BRIGHT,
                              activebackground=_ACCENT, activeforeground="#ffffff")
-        tones_menu.add_command(label="✨  Generate Tone…",          command=self._generate_tone)
-        tones_menu.add_command(label="📦  Generate Preset (.hlx)…", command=self._generate_preset)
-        tones_menu.add_command(label="📋  Preset Catalog…",         command=self._open_catalog)
+        tones_menu.add_command(label="✨  Generate Tone…",   command=self._generate_tone)
+        tones_menu.add_command(label="🎸  Open HLX Generator",
+                               command=lambda: self._tabs.set("🎸  HLX Generator"))
         tones_menu.add_separator()
         tones_menu.add_command(label="⊕  Add Tone",     command=self._add_tone)
         tones_menu.add_command(label="✏  Edit Selected", command=self._edit_tone)
@@ -651,7 +684,7 @@ class SoundboardApp(ctk.CTk):
     # ---- Toolbar -----------------------------------------------------
 
     def _build_toolbar(self) -> None:
-        toolbar = ctk.CTkFrame(self, height=44, fg_color=_BG_TOOLBAR,
+        toolbar = ctk.CTkFrame(self._board_tab, height=44, fg_color=_BG_TOOLBAR,
                                corner_radius=0)
         toolbar.pack(fill="x", side="top")
         toolbar.pack_propagate(False)
@@ -685,14 +718,6 @@ class SoundboardApp(ctk.CTk):
                       command=self._generate_tone, **btn_opts).pack(
             side="left", padx=2, pady=6)
 
-        ctk.CTkButton(toolbar, text="📦  Preset", width=105,
-                      command=self._generate_preset, **btn_opts).pack(
-            side="left", padx=2, pady=6)
-
-        ctk.CTkButton(toolbar, text="📋  Catalog", width=105,
-                      command=self._open_catalog, **btn_opts).pack(
-            side="left", padx=2, pady=6)
-
         # Live panel toggle — right-aligned
         self._live_btn = ctk.CTkButton(
             toolbar, text="⚡  Live", width=90,
@@ -702,7 +727,7 @@ class SoundboardApp(ctk.CTk):
     # ---- Tone grid ---------------------------------------------------
 
     def _build_grid(self) -> None:
-        self._scroll = ctk.CTkScrollableFrame(self, fg_color="#1c1c1c",
+        self._scroll = ctk.CTkScrollableFrame(self._board_tab, fg_color="#1c1c1c",
                                               corner_radius=0)
         self._scroll.pack(fill="both", expand=True)
         # Responsive column recalculation
@@ -717,7 +742,7 @@ class SoundboardApp(ctk.CTk):
     # ---- Status bar --------------------------------------------------
 
     def _build_statusbar(self) -> None:
-        bar = ctk.CTkFrame(self, height=32, fg_color=_BG_STATUS,
+        bar = ctk.CTkFrame(self._board_tab, height=32, fg_color=_BG_STATUS,
                            corner_radius=0)
         bar.pack(fill="x", side="bottom")
         bar.pack_propagate(False)
@@ -1039,7 +1064,7 @@ class SoundboardApp(ctk.CTk):
     # ------------------------------------------------------------------
 
     def _build_live_panel(self) -> None:
-        self._live_ctrl = LiveControlPanel(self, self._midi, self._show_status)
+        self._live_ctrl = LiveControlPanel(self._board_tab, self._midi, self._show_status)
 
     def _toggle_live_panel(self) -> None:
         self._live_visible = not self._live_visible

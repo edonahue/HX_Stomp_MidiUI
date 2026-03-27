@@ -53,6 +53,7 @@ Do not include preset, bank_msb, or bank_lsb."""
 _TEXT_DIM    = "#888888"
 _TEXT_BRIGHT = "#e0e0e0"
 _ACCENT      = "#4A90D9"
+_BG_TOOLBAR  = "#1e1e1e"
 
 
 # ---------------------------------------------------------------------------
@@ -630,33 +631,53 @@ _CAT_COLOR: dict[str, str] = {
 _SNAP_COLORS: tuple[str, ...] = ("#2c5f8a", "#5a3c82", "#2e6b4f")
 
 
-class GeneratePresetDialog(ctk.CTkToplevel):
+# ---------------------------------------------------------------------------
+# HLXWorkspacePanel  — embeddable CTkFrame (used in the HLX Generator tab)
+# ---------------------------------------------------------------------------
+
+class HLXWorkspacePanel(ctk.CTkFrame):
     """
-    Dialog for generating a complete HX Stomp .hlx preset via LLM.
+    Embeddable version of GeneratePresetDialog content.
 
-    After generation the result panel shows the signal chain, per-block
-    explanations, and overall rationale.  The user can then save the .hlx
-    file and optionally regenerate.
+    Can be placed directly inside a tab or any other container frame.
+    Pass no_llm=True to show a notice instead of the generation form.
+    Pass on_preset_saved callback to be notified after a successful save.
     """
 
-    def __init__(self, parent):
-        super().__init__(parent)
-        self.title("Generate HX Stomp Preset")
-        self.resizable(False, False)
-        self.minsize(500, 340)
-        self.grab_set()
+    def __init__(self, parent, no_llm: bool = False,
+                 on_preset_saved: "Callable[[], None] | None" = None):
+        super().__init__(parent, fg_color="transparent")
+        self._no_llm          = no_llm
+        self._on_preset_saved = on_preset_saved
+        self._cfg             = load_config()
+        self._loading         = False
+        self._result          = None
+        self._result_frame: "ctk.CTkFrame | None" = None
 
-        self._cfg     = load_config()
-        self._loading = False
-        self._result  = None          # PresetResult once generated
+        if no_llm:
+            self._build_no_llm_notice()
+        else:
+            self._build()
 
-        self._build()
+    # ------------------------------------------------------------------
+    # No-LLM notice
+    # ------------------------------------------------------------------
+
+    def _build_no_llm_notice(self) -> None:
+        ctk.CTkLabel(
+            self,
+            text="AI preset generation is disabled.\n\n"
+                 "Restart without --no-llm to enable.",
+            font=ctk.CTkFont(size=14),
+            text_color=_TEXT_DIM,
+            justify="center",
+        ).pack(expand=True, pady=60)
 
     # ------------------------------------------------------------------
     # Helpers (shared with GenerateToneDialog)
     # ------------------------------------------------------------------
 
-    def _available_labels(self) -> list[str]:
+    def _available_labels(self) -> list:
         return [cls.label for cls in PROVIDERS]
 
     def _label_to_name(self, label: str) -> str:
@@ -764,20 +785,14 @@ class GeneratePresetDialog(ctk.CTkToplevel):
             command=self._start_generate)
         self._gen_btn.pack(side="left", padx=6)
 
-        ctk.CTkButton(
-            btn_frame, text="Cancel", width=90,
-            fg_color="transparent", border_width=1, text_color=_TEXT_BRIGHT,
-            command=self.destroy,
-        ).pack(side="left", padx=6)
-
         # Result area — built dynamically after generation
-        self._result_frame: ctk.CTkFrame | None = None
+        self._result_frame = None
 
         # Initialise dynamic labels
         self._refresh_provider_ui()
 
     # ------------------------------------------------------------------
-    # Provider helpers (mirror GenerateToneDialog)
+    # Provider helpers
     # ------------------------------------------------------------------
 
     def _refresh_provider_ui(self) -> None:
@@ -810,7 +825,7 @@ class GeneratePresetDialog(ctk.CTkToplevel):
     def _configure_provider(self) -> None:
         name = self._label_to_name(self._prov_var.get())
         dlg  = ProviderConfigDialog(self, name)
-        self.wait_window(dlg)
+        self.winfo_toplevel().wait_window(dlg)
         self._cfg = load_config()
         self._refresh_provider_ui()
 
@@ -842,7 +857,6 @@ class GeneratePresetDialog(ctk.CTkToplevel):
                 text_color="#e74c3c")
             return
         self._status_lbl.configure(text="", text_color=_TEXT_DIM)
-        # Clear previous result if regenerating
         if self._result_frame is not None:
             self._result_frame.destroy()
             self._result_frame = None
@@ -872,6 +886,13 @@ class GeneratePresetDialog(ctk.CTkToplevel):
     def _on_error(self, msg: str) -> None:
         self._set_loading(False)
         self._status_lbl.configure(text=f"Error: {msg}", text_color="#e74c3c")
+
+    def _clear_result(self) -> None:
+        if self._result_frame is not None:
+            self._result_frame.destroy()
+            self._result_frame = None
+        self._result = None
+        self._status_lbl.configure(text="", text_color=_TEXT_DIM)
 
     def _build_result_panel(self, result) -> None:
         """Build (or rebuild) the result panel below the action buttons."""
@@ -938,7 +959,6 @@ class GeneratePresetDialog(ctk.CTkToplevel):
                 text_color="#ffffffaa",
             ).pack(padx=8, pady=(0, 5))
 
-            # Arrow between cards
             if i < len(result.blocks) - 1:
                 ctk.CTkLabel(
                     chain_outer, text="→",
@@ -1051,9 +1071,9 @@ class GeneratePresetDialog(ctk.CTkToplevel):
         ).pack(side="left", padx=6)
 
         ctk.CTkButton(
-            act_frame, text="Close", width=80,
+            act_frame, text="✕  Clear", width=80,
             fg_color="transparent", border_width=1, text_color=_TEXT_DIM,
-            command=self.destroy,
+            command=self._clear_result,
         ).pack(side="left", padx=6)
 
     # ------------------------------------------------------------------
@@ -1079,6 +1099,8 @@ class GeneratePresetDialog(ctk.CTkToplevel):
         catalog.save_preset(self._result, filepath=dest)
         self._status_lbl.configure(
             text=f"Saved: {dest.name}", text_color=_ACCENT)
+        if self._on_preset_saved is not None:
+            self._on_preset_saved()
 
     def _regenerate(self) -> None:
         description = self._text.get("1.0", "end").strip()
@@ -1093,32 +1115,40 @@ class GeneratePresetDialog(ctk.CTkToplevel):
                          daemon=True).start()
 
 
-# ---------------------------------------------------------------------------
-# PresetCatalogDialog
-# ---------------------------------------------------------------------------
-
-class PresetCatalogDialog(ctk.CTkToplevel):
+class GeneratePresetDialog(ctk.CTkToplevel):
     """
-    Browse, re-export, and delete previously generated .hlx presets.
-    Reads ~/.hxstomp/presets/catalog.json via PresetCatalog.
+    Thin wrapper around HLXWorkspacePanel for standalone dialog use.
     """
-
-    _ROW_H = 88   # height of each catalog row card
 
     def __init__(self, parent):
         super().__init__(parent)
-        self.title("Generated Preset Catalog")
-        self.geometry("640x520")
-        self.resizable(True, True)
-        self.minsize(600, 400)
+        self.title("Generate HX Stomp Preset")
+        self.resizable(False, False)
+        self.minsize(520, 380)
         self.grab_set()
-        self._build()
 
-    # ------------------------------------------------------------------
-    # Build
-    # ------------------------------------------------------------------
+        self._panel = HLXWorkspacePanel(self)
+        self._panel.pack(fill="both", expand=True, padx=0, pady=0)
 
-    def _build(self) -> None:
+        ctk.CTkButton(
+            self, text="Close", width=90,
+            fg_color="transparent", border_width=1, text_color=_TEXT_BRIGHT,
+            command=self.destroy,
+        ).pack(pady=(0, 8))
+
+
+# ---------------------------------------------------------------------------
+# PresetCatalogPanel  — embeddable CTkFrame (used in the HLX Generator tab)
+# ---------------------------------------------------------------------------
+
+class PresetCatalogPanel(ctk.CTkFrame):
+    """
+    Embeddable catalog browser. Can be placed inside a tab or PanedWindow.
+    Call refresh() to reload after a new preset is saved.
+    """
+
+    def __init__(self, parent):
+        super().__init__(parent, fg_color="transparent")
         from hlx_builder import PresetCatalog
         self._catalog = PresetCatalog()
 
@@ -1133,6 +1163,11 @@ class PresetCatalogDialog(ctk.CTkToplevel):
             text_color=_TEXT_BRIGHT,
         ).pack(side="left", padx=14, pady=10)
 
+        self._footer_lbl = ctk.CTkLabel(
+            hdr, text="", font=ctk.CTkFont(size=11),
+            text_color=_TEXT_DIM, anchor="w")
+        self._footer_lbl.pack(side="left", padx=(0, 8))
+
         ctk.CTkButton(
             hdr, text="↺  Refresh", width=90,
             fg_color="transparent", border_width=1, text_color=_TEXT_BRIGHT,
@@ -1144,24 +1179,14 @@ class PresetCatalogDialog(ctk.CTkToplevel):
             self, fg_color="#1c1c1c", corner_radius=0)
         self._scroll.pack(fill="both", expand=True)
 
-        # ── Footer ────────────────────────────────────────────────────
-        footer = ctk.CTkFrame(self, fg_color=_BG_TOOLBAR, corner_radius=0,
-                              height=44)
-        footer.pack(fill="x", side="bottom")
-        footer.pack_propagate(False)
-
-        self._footer_lbl = ctk.CTkLabel(
-            footer, text="", font=ctk.CTkFont(size=11),
-            text_color=_TEXT_DIM, anchor="w")
-        self._footer_lbl.pack(side="left", padx=14)
-
-        ctk.CTkButton(
-            footer, text="Close", width=80,
-            fg_color="transparent", border_width=1, text_color=_TEXT_DIM,
-            command=self.destroy,
-        ).pack(side="right", padx=8, pady=8)
-
         self._render_list()
+
+    # ------------------------------------------------------------------
+    # Public API
+    # ------------------------------------------------------------------
+
+    def refresh(self) -> None:
+        self._refresh()
 
     # ------------------------------------------------------------------
     # List rendering
@@ -1177,7 +1202,7 @@ class PresetCatalogDialog(ctk.CTkToplevel):
             ctk.CTkLabel(
                 self._scroll,
                 text="No generated presets yet.\n\n"
-                     "Use  📦 Preset  to generate your first .hlx file.",
+                     "Use the generator above to create your first .hlx file.",
                 font=ctk.CTkFont(size=12),
                 text_color=_TEXT_DIM,
                 justify="center",
@@ -1192,16 +1217,15 @@ class PresetCatalogDialog(ctk.CTkToplevel):
             self._build_row(entry)
 
     def _build_row(self, entry: dict) -> None:
-        filename = entry.get("filename", "")
-        name     = entry.get("preset_name", filename)
-        desc     = entry.get("description", "")
-        created  = entry.get("created", "")
-        blocks   = entry.get("blocks", [])
+        filename  = entry.get("filename", "")
+        name      = entry.get("preset_name", filename)
+        desc      = entry.get("description", "")
+        created   = entry.get("created", "")
+        blocks    = entry.get("blocks", [])
         rationale = entry.get("signal_chain_rationale", "")
 
         # Outer card
-        card = ctk.CTkFrame(self._scroll, fg_color="#252525",
-                            corner_radius=8)
+        card = ctk.CTkFrame(self._scroll, fg_color="#252525", corner_radius=8)
         card.pack(fill="x", padx=10, pady=(6, 0))
 
         # ── Top row: name + date + actions ────────────────────────────
@@ -1215,7 +1239,6 @@ class PresetCatalogDialog(ctk.CTkToplevel):
             text_color=_TEXT_BRIGHT, anchor="w",
         ).pack(side="left")
 
-        # Date — trim to date only
         date_str = created[:10] if created else ""
         if date_str:
             ctk.CTkLabel(
@@ -1223,7 +1246,6 @@ class PresetCatalogDialog(ctk.CTkToplevel):
                 font=ctk.CTkFont(size=10), text_color=_TEXT_DIM,
             ).pack(side="left", padx=(8, 0))
 
-        # Action buttons (right-aligned)
         ctk.CTkButton(
             top, text="🗑", width=30, height=24,
             fg_color="transparent", hover_color="#3a1515",
@@ -1259,9 +1281,9 @@ class PresetCatalogDialog(ctk.CTkToplevel):
             chain.pack(fill="x", padx=10, pady=(0, 6))
 
             for i, blk in enumerate(blocks):
-                cat   = blk.get("category", "")
-                color = _CAT_COLOR.get(cat, "#4A90D9")
-                badge = _CAT_BADGE.get(cat, "•")
+                cat      = blk.get("category", "")
+                color    = _CAT_COLOR.get(cat, "#4A90D9")
+                badge    = _CAT_BADGE.get(cat, "•")
                 blk_name = blk.get("name", blk.get("model_id", "?"))
 
                 chip = ctk.CTkFrame(chain, fg_color=color, corner_radius=4)
@@ -1285,7 +1307,7 @@ class PresetCatalogDialog(ctk.CTkToplevel):
             snap_row = ctk.CTkFrame(card, fg_color="transparent")
             snap_row.pack(fill="x", padx=10, pady=(0, 4))
             for si, snap in enumerate(snaps[:3]):
-                sc = _SNAP_COLORS[si % len(_SNAP_COLORS)]
+                sc   = _SNAP_COLORS[si % len(_SNAP_COLORS)]
                 pill = ctk.CTkFrame(snap_row, fg_color=sc, corner_radius=4)
                 pill.pack(side="left", padx=(0, 4))
                 ctk.CTkLabel(
@@ -1295,7 +1317,7 @@ class PresetCatalogDialog(ctk.CTkToplevel):
                     text_color="#ffffff",
                 ).pack(padx=7, pady=(3, 3))
 
-        # ── Rationale (collapsed — shown as tooltip-style dim text) ───
+        # ── Rationale ─────────────────────────────────────────────────
         if rationale:
             ctk.CTkLabel(
                 card, text=rationale,
@@ -1304,7 +1326,6 @@ class PresetCatalogDialog(ctk.CTkToplevel):
                 wraplength=560, justify="left",
             ).pack(fill="x", padx=10, pady=(0, 8))
 
-        # Bottom separator
         ctk.CTkFrame(card, height=1, fg_color="#333333").pack(
             fill="x", padx=0, pady=(4, 0))
 
@@ -1318,7 +1339,6 @@ class PresetCatalogDialog(ctk.CTkToplevel):
         self._render_list()
 
     def _show_in_folder(self, filename: str) -> None:
-        """Reveal the .hlx file in the system file manager / Finder / Explorer."""
         import subprocess, sys
         from hlx_builder import PresetCatalog
         filepath = PresetCatalog._PRESETS_DIR / filename
@@ -1338,7 +1358,6 @@ class PresetCatalogDialog(ctk.CTkToplevel):
                 text=f"Could not open folder: {exc}", text_color="#e74c3c")
 
     def _export(self, entry: dict) -> None:
-        """Copy the .hlx file to a user-chosen location."""
         import shutil
         from hlx_builder import PresetCatalog
         src = PresetCatalog._PRESETS_DIR / entry.get("filename", "")
@@ -1360,15 +1379,45 @@ class PresetCatalogDialog(ctk.CTkToplevel):
             text=f"Exported: {Path(dest).name}", text_color=_ACCENT)
 
     def _remove(self, filename: str) -> None:
-        """Remove a catalog entry (keeps the file on disk)."""
         from hlx_builder import PresetCatalog
         import tkinter.messagebox as mb
         if not mb.askyesno(
             "Remove Entry",
             f"Remove '{filename}' from the catalog?\n\n"
             "The .hlx file is not deleted.",
-            parent=self,
+            parent=self.winfo_toplevel(),
         ):
             return
         PresetCatalog().remove_entry(filename)
         self._refresh()
+
+
+# ---------------------------------------------------------------------------
+# PresetCatalogDialog
+# ---------------------------------------------------------------------------
+
+class PresetCatalogDialog(ctk.CTkToplevel):
+    """
+    Thin wrapper around PresetCatalogPanel for standalone dialog use.
+    """
+
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.title("Generated Preset Catalog")
+        self.geometry("640x520")
+        self.resizable(True, True)
+        self.minsize(600, 400)
+        self.grab_set()
+
+        self._panel = PresetCatalogPanel(self)
+        self._panel.pack(fill="both", expand=True)
+
+        footer = ctk.CTkFrame(self, fg_color=_BG_TOOLBAR, corner_radius=0,
+                              height=44)
+        footer.pack(fill="x", side="bottom")
+        footer.pack_propagate(False)
+        ctk.CTkButton(
+            footer, text="Close", width=80,
+            fg_color="transparent", border_width=1, text_color=_TEXT_DIM,
+            command=self.destroy,
+        ).pack(side="right", padx=8, pady=8)
