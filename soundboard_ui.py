@@ -237,8 +237,19 @@ class ToneDialog(ctk.CTkToplevel):
         )
         self._color_btn.grid(row=color_row, column=1, padx=(4, 12), pady=5, sticky="w")
 
+        hint = ctk.CTkFrame(self, fg_color="#252525", corner_radius=6)
+        hint.grid(row=color_row + 1, column=0, columnspan=2,
+                  sticky="ew", padx=12, pady=(4, 2))
+        ctk.CTkLabel(
+            hint,
+            text='Bank LSB 0\u20133 = Setlist 1\u20134  \u00b7  Preset 0 = display "1A"  \u00b7  Snapshot 0 = Snapshot 1',
+            font=ctk.CTkFont(size=9),
+            text_color=_TEXT_DIM,
+            anchor="w",
+        ).pack(padx=8, pady=5, fill="x")
+
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
-        btn_frame.grid(row=color_row + 1, column=0, columnspan=2, pady=12)
+        btn_frame.grid(row=color_row + 2, column=0, columnspan=2, pady=12)
 
         ctk.CTkButton(btn_frame, text="OK", width=90,
                       command=self._ok).pack(side="left", padx=6)
@@ -531,6 +542,11 @@ class SoundboardApp(ctk.CTk):
         self._live_view_var = tk.BooleanVar(value=False)
 
         self._build_ui()
+        cfg = load_config()
+        if cfg.get("live_panel_visible", False):
+            self._live_visible = True
+            self._live_view_var.set(True)
+            self._live_ctrl.pack(fill="x", side="top", before=self._scroll)
         self._render_tones()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
@@ -856,7 +872,7 @@ class SoundboardApp(ctk.CTk):
         # MIDI detail — small, muted
         sub_lbl = ctk.CTkLabel(
             card,
-            text=f"PC {tone.preset} · S{tone.snapshot + 1}",
+            text=f"Preset {tone.preset}  ·  Snap {tone.snapshot + 1}",
             font=ctk.CTkFont(family="Helvetica", size=9),
             text_color=sub_fg,
             anchor="center",
@@ -951,7 +967,7 @@ class SoundboardApp(ctk.CTk):
         old = self._active
         self._active = tone.name
         self._active_lbl.configure(
-            text=f"{tone.name}  ·  Bank {tone.bank_lsb}  PC {tone.preset}  S{tone.snapshot + 1}",
+            text=f"{tone.name}  ·  {'Setlist ' + str(tone.bank_lsb + 1) if tone.bank_lsb < 4 else 'Bank ' + str(tone.bank_lsb)}  Preset {tone.preset}  Snap {tone.snapshot + 1}",
             text_color=_TEXT_BRIGHT,
         )
         # Refresh border on old and new cards
@@ -1028,6 +1044,9 @@ class SoundboardApp(ctk.CTk):
     def _toggle_live_panel(self) -> None:
         self._live_visible = not self._live_visible
         self._live_view_var.set(self._live_visible)
+        cfg = load_config()
+        cfg["live_panel_visible"] = self._live_visible
+        save_config(cfg)
         if self._live_visible:
             self._live_ctrl.pack(fill="x", side="top", before=self._scroll)
         else:
