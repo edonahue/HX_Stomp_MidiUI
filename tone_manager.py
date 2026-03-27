@@ -132,7 +132,12 @@ class ToneManager:
                 raise ValueError(
                     f"Could not parse {self.filepath}: {exc}"
                 ) from exc
-        self._tones = [Tone.from_dict(d) for d in data]
+        try:
+            self._tones = [Tone.from_dict(d) for d in data]
+        except (KeyError, TypeError) as exc:
+            raise ValueError(
+                f"Malformed entry in {self.filepath}: missing field {exc}"
+            ) from exc
         print(f"[ToneManager] Loaded {len(self._tones)} tones from {self.filepath}")
 
     def save(self) -> None:

@@ -53,10 +53,15 @@ Do not include preset, bank_msb, or bank_lsb."""
 _TEXT_DIM    = "#888888"
 _TEXT_BRIGHT = "#e0e0e0"
 _ACCENT      = "#4A90D9"
+_COL_DISC    = "#e74c3c"
 _BG_TOOLBAR  = "#1e1e1e"
 _BG_SURFACE  = "#1e1e1e"
 _BG_CARD     = "#252525"
 _BG_INPUT    = "#2d2d2d"
+_BORDER_DIM    = "#333333"
+_BG_TEXT_INPUT = "#2b2b2b"
+_TEXT_WARN     = "#e8a838"
+_BG_WARN       = "#2a2000"
 
 _PROVIDER_COLORS: dict[str, str] = {
     "anthropic": "#d97706",
@@ -396,7 +401,19 @@ class ProviderConfigDialog(ctk.CTkToplevel):
         ).pack(side="left", padx=6)
 
     def _save(self) -> None:
+        from tkinter import messagebox as _mb
         name = self._name
+        cls  = next((p for p in PROVIDERS if p.name == name), AnthropicProvider)
+        if cls.requires_key:
+            api_key = self._fields.get("api_key", tk.StringVar()).get().strip()
+            if not api_key:
+                if not _mb.askokcancel(
+                    "Empty API Key",
+                    f"No API key entered for {cls.label}.\n"
+                    "Generation won't work without a key. Save anyway?",
+                    parent=self,
+                ):
+                    return
         for key, var in self._fields.items():
             self._cfg[f"{name}_{key}"] = var.get().strip()
         save_config(self._cfg)
@@ -484,7 +501,7 @@ class GenerateToneDialog(ctk.CTkToplevel):
         # Key warning — amber, shown only when key is absent for a cloud provider
         self._key_warn_lbl = ctk.CTkLabel(
             self, text="",
-            text_color="#e8a838",
+            text_color=_TEXT_WARN,
             font=ctk.CTkFont(size=11),
             anchor="w", wraplength=400, justify="left")
         # Not packed here — shown/hidden by _refresh_provider_ui()
@@ -494,13 +511,13 @@ class GenerateToneDialog(ctk.CTkToplevel):
             fill="x", padx=14, pady=(8, 2))
 
         # Multi-line text area
-        txt_frame = ctk.CTkFrame(self, fg_color="#2b2b2b", corner_radius=6)
+        txt_frame = ctk.CTkFrame(self, fg_color=_BG_TEXT_INPUT, corner_radius=6)
         txt_frame.pack(fill="x", padx=14, pady=(0, 4))
         self._text = tk.Text(
             txt_frame,
             height=4, width=46,
             wrap="word",
-            bg="#2b2b2b", fg=_TEXT_BRIGHT,
+            bg=_BG_TEXT_INPUT, fg=_TEXT_BRIGHT,
             insertbackground=_TEXT_BRIGHT,
             relief="flat", bd=0,
             font=("Helvetica", 12),
@@ -606,7 +623,7 @@ class GenerateToneDialog(ctk.CTkToplevel):
         if not description:
             self._status_lbl.configure(
                 text="Please describe your tone first.",
-                text_color="#e74c3c")
+                text_color=_COL_DISC)
             return
         self._status_lbl.configure(text="", text_color=_TEXT_DIM)
         self._set_loading(True)
@@ -630,7 +647,7 @@ class GenerateToneDialog(ctk.CTkToplevel):
     def _on_error(self, msg: str) -> None:
         self._set_loading(False)
         self._status_lbl.configure(text=f"Error: {msg}",
-                                    text_color="#e74c3c")
+                                    text_color=_COL_DISC)
 
 
 # ---------------------------------------------------------------------------
@@ -770,7 +787,7 @@ class HLXWorkspacePanel(ctk.CTkFrame):
         # Key warning
         self._key_warn_lbl = ctk.CTkLabel(
             self, text="",
-            text_color="#e8a838",
+            text_color=_TEXT_WARN,
             font=ctk.CTkFont(size=11),
             anchor="w", wraplength=460, justify="left")
 
@@ -778,13 +795,13 @@ class HLXWorkspacePanel(ctk.CTkFrame):
         ctk.CTkLabel(self, text="Describe the tone or artist to emulate:",
                      anchor="w").pack(fill="x", padx=14, pady=(8, 2))
 
-        txt_frame = ctk.CTkFrame(self, fg_color="#2b2b2b", corner_radius=6)
+        txt_frame = ctk.CTkFrame(self, fg_color=_BG_TEXT_INPUT, corner_radius=6)
         txt_frame.pack(fill="x", padx=14, pady=(0, 4))
         self._text = tk.Text(
             txt_frame,
             height=4, width=52,
             wrap="word",
-            bg="#2b2b2b", fg=_TEXT_BRIGHT,
+            bg=_BG_TEXT_INPUT, fg=_TEXT_BRIGHT,
             insertbackground=_TEXT_BRIGHT,
             relief="flat", bd=0,
             font=("Helvetica", 12),
@@ -852,7 +869,7 @@ class HLXWorkspacePanel(ctk.CTkFrame):
                 self._prov_dot.configure(text_color=brand_color)
                 self._key_warn_lbl.pack_forget()
             else:
-                self._prov_dot.configure(text_color="#e8a838")
+                self._prov_dot.configure(text_color=_TEXT_WARN)
                 self._key_warn_lbl.configure(
                     text=f"⚠  No API key for {cls.label}. "
                          f"Click ⚙ Configure… to add your key.")
@@ -899,7 +916,7 @@ class HLXWorkspacePanel(ctk.CTkFrame):
         if not description:
             self._status_lbl.configure(
                 text="Please describe a tone or artist first.",
-                text_color="#e74c3c")
+                text_color=_COL_DISC)
             return
         self._status_lbl.configure(text="", text_color=_TEXT_DIM)
         if self._result_frame is not None:
@@ -918,6 +935,9 @@ class HLXWorkspacePanel(ctk.CTkFrame):
         except LLMGenerationError as exc:
             msg = str(exc)
             self.after(0, lambda m=msg: self._on_error(m))
+        except Exception as exc:
+            msg = f"Unexpected error: {exc}"
+            self.after(0, lambda m=msg: self._on_error(m))
 
     # ------------------------------------------------------------------
     # Result display
@@ -930,7 +950,7 @@ class HLXWorkspacePanel(ctk.CTkFrame):
 
     def _on_error(self, msg: str) -> None:
         self._set_loading(False)
-        self._status_lbl.configure(text=f"Error: {msg}", text_color="#e74c3c")
+        self._status_lbl.configure(text=f"Error: {msg}", text_color=_COL_DISC)
 
     def _clear_result(self) -> None:
         if self._result_frame is not None:
@@ -944,12 +964,12 @@ class HLXWorkspacePanel(ctk.CTkFrame):
         if self._result_frame is not None:
             self._result_frame.destroy()
 
-        rf = ctk.CTkFrame(self, fg_color="#1e1e1e", corner_radius=8)
+        rf = ctk.CTkFrame(self, fg_color=_BG_SURFACE, corner_radius=8)
         rf.pack(fill="x", padx=14, pady=(4, 8))
         self._result_frame = rf
 
         # Separator line
-        ctk.CTkFrame(rf, height=1, fg_color="#333333").pack(
+        ctk.CTkFrame(rf, height=1, fg_color=_BORDER_DIM).pack(
             fill="x", padx=0, pady=(0, 8))
 
         # Preset name + description
@@ -1023,13 +1043,13 @@ class HLXWorkspacePanel(ctk.CTkFrame):
         # ── Warnings strip (amber) ────────────────────────────────────
         result_warnings = getattr(result, "warnings", [])
         if result_warnings:
-            warn_frame = ctk.CTkFrame(rf, fg_color="#2a2000", corner_radius=6)
+            warn_frame = ctk.CTkFrame(rf, fg_color=_BG_WARN, corner_radius=6)
             warn_frame.pack(fill="x", padx=12, pady=(6, 2))
             ctk.CTkLabel(
                 warn_frame,
                 text="⚠  Generation notes",
                 font=ctk.CTkFont(size=10, weight="bold"),
-                text_color="#e8a838", anchor="w",
+                text_color=_TEXT_WARN, anchor="w",
             ).pack(fill="x", padx=10, pady=(6, 2))
             for w in result_warnings:
                 ctk.CTkLabel(
@@ -1109,7 +1129,7 @@ class HLXWorkspacePanel(ctk.CTkFrame):
             ).pack(fill="x", padx=12, pady=(0, 4))
 
         # ── Action buttons ────────────────────────────────────────────
-        ctk.CTkFrame(rf, height=1, fg_color="#333333").pack(
+        ctk.CTkFrame(rf, height=1, fg_color=_BORDER_DIM).pack(
             fill="x", padx=0, pady=(4, 0))
         act_frame = ctk.CTkFrame(rf, fg_color="transparent")
         act_frame.pack(pady=8)
@@ -1151,11 +1171,16 @@ class HLXWorkspacePanel(ctk.CTkFrame):
             return
         from pathlib import Path as _Path
         dest = _Path(filepath)
-        catalog.save_preset(self._result, filepath=dest)
-        self._status_lbl.configure(
-            text=f"Saved: {dest.name}", text_color=_ACCENT)
-        if self._on_preset_saved is not None:
-            self._on_preset_saved()
+        try:
+            catalog.save_preset(self._result, filepath=dest)
+            self._status_lbl.configure(
+                text=f"Saved: {dest.name}", text_color=_ACCENT)
+            if self._on_preset_saved is not None:
+                self._on_preset_saved()
+        except Exception as exc:
+            from tkinter import messagebox as _mb
+            _mb.showerror("Save failed", str(exc))
+            self._status_lbl.configure(text="Save failed", text_color=_COL_DISC)
 
     def _regenerate(self) -> None:
         description = self._text.get("1.0", "end").strip()
@@ -1281,9 +1306,9 @@ class PresetCatalogPanel(ctk.CTkFrame):
 
         # Outer card with border
         first_cat   = blocks[0].get("category", "") if blocks else ""
-        accent_color = _CAT_COLOR.get(first_cat, "#333333")
-        card = ctk.CTkFrame(self._scroll, fg_color="#252525", corner_radius=8,
-                            border_width=1, border_color="#333333")
+        accent_color = _CAT_COLOR.get(first_cat, _BORDER_DIM)
+        card = ctk.CTkFrame(self._scroll, fg_color=_BG_CARD, corner_radius=8,
+                            border_width=1, border_color=_BORDER_DIM)
         card.pack(fill="x", padx=10, pady=(6, 0))
 
         # Left category accent strip
@@ -1315,7 +1340,7 @@ class PresetCatalogPanel(ctk.CTkFrame):
         ctk.CTkButton(
             top, text="🗑", width=30, height=24,
             fg_color="transparent", hover_color="#3a1515",
-            text_color="#e74c3c", font=ctk.CTkFont(size=12),
+            text_color=_COL_DISC, font=ctk.CTkFont(size=12),
             command=lambda fn=filename: self._remove(fn),
         ).pack(side="right", padx=(4, 0))
 
@@ -1363,8 +1388,8 @@ class PresetCatalogPanel(ctk.CTkFrame):
 
                 if i < len(blocks) - 1:
                     ctk.CTkLabel(
-                        chain, text="→",
-                        font=ctk.CTkFont(size=10), text_color=_TEXT_DIM,
+                        chain, text="▸",
+                        font=ctk.CTkFont(size=10), text_color="#555555",
                     ).pack(side="left", padx=1)
 
         # ── Snapshot pills ────────────────────────────────────────────
@@ -1392,7 +1417,7 @@ class PresetCatalogPanel(ctk.CTkFrame):
                 wraplength=560, justify="left",
             ).pack(fill="x", padx=10, pady=(0, 8))
 
-        ctk.CTkFrame(inner, height=1, fg_color="#333333").pack(
+        ctk.CTkFrame(inner, height=1, fg_color=_BORDER_DIM).pack(
             fill="x", padx=0, pady=(4, 0))
 
     # ------------------------------------------------------------------
@@ -1410,7 +1435,7 @@ class PresetCatalogPanel(ctk.CTkFrame):
         filepath = PresetCatalog._PRESETS_DIR / filename
         if not filepath.exists():
             self._footer_lbl.configure(
-                text=f"File not found: {filename}", text_color="#e74c3c")
+                text=f"File not found: {filename}", text_color=_COL_DISC)
             return
         try:
             if sys.platform == "darwin":
@@ -1421,7 +1446,7 @@ class PresetCatalogPanel(ctk.CTkFrame):
                 subprocess.Popen(["xdg-open", str(filepath.parent)])
         except Exception as exc:
             self._footer_lbl.configure(
-                text=f"Could not open folder: {exc}", text_color="#e74c3c")
+                text=f"Could not open folder: {exc}", text_color=_COL_DISC)
 
     def _export(self, entry: dict) -> None:
         import shutil
@@ -1429,7 +1454,7 @@ class PresetCatalogPanel(ctk.CTkFrame):
         src = PresetCatalog._PRESETS_DIR / entry.get("filename", "")
         if not src.exists():
             self._footer_lbl.configure(
-                text=f"File not found: {src.name}", text_color="#e74c3c")
+                text=f"File not found: {src.name}", text_color=_COL_DISC)
             return
         name = entry.get("preset_name", src.stem)
         dest = filedialog.asksaveasfilename(

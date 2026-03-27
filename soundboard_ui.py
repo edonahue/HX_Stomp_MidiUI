@@ -53,6 +53,11 @@ _COL_DISC     = "#e74c3c"   # red    — disconnected
 _BG_TOOLBAR = _BG_SURFACE
 _BG_STATUS  = _BG_BASE
 
+_BORDER_DIM    = "#333333"   # borders, separators
+_BG_TEXT_INPUT = "#2b2b2b"   # tk.Text / entry area backgrounds
+_TEXT_WARN     = "#e8a838"   # amber warning text
+_BG_WARN       = "#2a2000"   # amber warning frame background
+
 _CARD_W       = 160
 _CARD_H       = 90
 _CARD_RADIUS  = 10
@@ -126,7 +131,7 @@ class ConnectDialog(ctk.CTkToplevel):
         pad = {"padx": 12, "pady": 6}
 
         # Hardware setup hint
-        hint = ctk.CTkFrame(self, fg_color="#252525", corner_radius=6)
+        hint = ctk.CTkFrame(self, fg_color=_BG_CARD, corner_radius=6)
         hint.grid(row=0, column=0, columnspan=2, sticky="ew", padx=12, pady=(10, 4))
         ctk.CTkLabel(
             hint,
@@ -257,7 +262,7 @@ class ToneDialog(ctk.CTkToplevel):
         )
         self._color_btn.grid(row=color_row, column=1, padx=(4, 12), pady=5, sticky="w")
 
-        hint = ctk.CTkFrame(self, fg_color="#252525", corner_radius=6)
+        hint = ctk.CTkFrame(self, fg_color=_BG_CARD, corner_radius=6)
         hint.grid(row=color_row + 1, column=0, columnspan=2,
                   sticky="ew", padx=12, pady=(4, 2))
         ctk.CTkLabel(
@@ -323,7 +328,7 @@ class LiveControlPanel(ctk.CTkFrame):
     _COL_OVERDUB = "#e67e22"
 
     def __init__(self, parent, midi, status_fn):
-        super().__init__(parent, fg_color="#252525", corner_radius=0)
+        super().__init__(parent, fg_color=_BG_CARD, corner_radius=0)
         self._midi       = midi
         self._status_fn  = status_fn
         self._tap_times: list[float] = []
@@ -358,7 +363,7 @@ class LiveControlPanel(ctk.CTkFrame):
               width: int = 72) -> ctk.CTkButton:
         btn = ctk.CTkButton(
             parent, text=text, width=width,
-            fg_color="transparent", hover_color="#333333",
+            fg_color="transparent", hover_color=_BORDER_DIM,
             text_color=_TEXT_BRIGHT, height=26, corner_radius=5,
             command=cmd,
         )
@@ -597,7 +602,7 @@ class SoundboardApp(ctk.CTk):
                                bg="#2a2a2a")
         pane.pack(fill="both", expand=True)
 
-        ws_outer = ctk.CTkScrollableFrame(pane, fg_color="#1c1c1c",
+        ws_outer = ctk.CTkScrollableFrame(pane, fg_color=_BG_BASE,
                                            corner_radius=0)
         self._hlx_workspace = HLXWorkspacePanel(
             ws_outer,
@@ -710,7 +715,7 @@ class SoundboardApp(ctk.CTk):
 
         btn_opts = dict(
             fg_color    = "transparent",
-            hover_color = "#333333",
+            hover_color = _BORDER_DIM,
             text_color  = _TEXT_BRIGHT,
             height      = 32,
             corner_radius = 6,
@@ -775,7 +780,7 @@ class SoundboardApp(ctk.CTk):
         # Connection pill — replaces separate dot + port label
         self._conn_pill = ctk.CTkFrame(
             bar, corner_radius=10, border_width=1,
-            fg_color=_BG_CARD, border_color="#333333")
+            fg_color=_BG_CARD, border_color=_BORDER_DIM)
         self._conn_pill.pack(side="right", padx=(0, 10), pady=6)
 
         self._conn_dot = ctk.CTkLabel(
@@ -844,7 +849,7 @@ class SoundboardApp(ctk.CTk):
             ("MIDI → Connect…",         "Plug HX Stomp into USB, then MIDI → Connect…. Match the channel to your device: Menu → Global Settings → MIDI/Tempo → MIDI Channel."),
         ]
         for action, detail in steps:
-            row_frame = ctk.CTkFrame(outer, fg_color="#252525", corner_radius=8)
+            row_frame = ctk.CTkFrame(outer, fg_color=_BG_CARD, corner_radius=8)
             row_frame.pack(fill="x", pady=3, ipadx=8, ipady=6)
 
             ctk.CTkLabel(
@@ -1002,7 +1007,7 @@ class SoundboardApp(ctk.CTk):
         else:
             self._conn_dot.configure(text_color=_COL_DISC)
             self._conn_text.configure(text="Not connected", text_color=_TEXT_DIM)
-            self._conn_pill.configure(border_color="#333333")
+            self._conn_pill.configure(border_color=_BORDER_DIM)
 
     # ------------------------------------------------------------------
     # Tone actions
@@ -1034,7 +1039,7 @@ class SoundboardApp(ctk.CTk):
         # Refresh border on old and new cards
         for name in (old, tone.name):
             if name and name in self._card_frames:
-                color = _ACCENT if name == self._active else "#1c1c1c"
+                color = _ACCENT if name == self._active else "#2a2a2a"
                 self._card_frames[name].configure(fg_color=color)
 
     def _add_tone(self) -> None:
@@ -1192,7 +1197,7 @@ class SoundboardApp(ctk.CTk):
         win.grab_set()
 
         def section(title: str, body: str) -> None:
-            hdr = ctk.CTkFrame(win, fg_color="#252525", corner_radius=6)
+            hdr = ctk.CTkFrame(win, fg_color=_BG_CARD, corner_radius=6)
             hdr.pack(fill="x", padx=14, pady=(10, 0))
             ctk.CTkLabel(
                 hdr, text=title,
