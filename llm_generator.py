@@ -74,6 +74,52 @@ _PROVIDER_COLORS: dict[str, str] = {
 
 
 # ---------------------------------------------------------------------------
+# UI helpers (shared across all dialogs)
+# ---------------------------------------------------------------------------
+
+def _safe_grab(window: ctk.CTkToplevel) -> None:
+    """Deferred grab_set() that survives X11/Wayland window-visibility timing."""
+    try:
+        window.wait_visibility()
+        window.grab_set()
+    except Exception:
+        pass
+
+
+def _set_clipboard(widget: ctk.CTk, text: str) -> tuple[bool, str, Exception | None]:
+    """
+    Copy *text* to the system clipboard using the best available method.
+
+    Tries wl-copy (Wayland) → xclip (X11) → Tk clipboard, in that order.
+    Returns (success, method_name, error_or_None).
+    """
+    try:
+        if os.environ.get("WAYLAND_DISPLAY") and shutil.which("wl-copy"):
+            subprocess.run(["wl-copy"], input=text, text=True, check=True)
+            if shutil.which("wl-paste"):
+                pasted = subprocess.run(
+                    ["wl-paste", "-n"], capture_output=True, text=True, check=True,
+                ).stdout
+                return pasted == text, "wl-copy", None
+            return True, "wl-copy", None
+        if os.environ.get("DISPLAY") and shutil.which("xclip"):
+            subprocess.run(
+                ["xclip", "-selection", "clipboard"], input=text, text=True, check=True,
+            )
+            pasted = subprocess.run(
+                ["xclip", "-selection", "clipboard", "-o"],
+                capture_output=True, text=True, check=True,
+            ).stdout
+            return pasted == text, "xclip", None
+        widget.clipboard_clear()
+        widget.clipboard_append(text)
+        widget.update()
+        return True, "tk", None
+    except Exception as exc:
+        return False, "unknown", exc
+
+
+# ---------------------------------------------------------------------------
 # Config helpers
 # ---------------------------------------------------------------------------
 
@@ -330,7 +376,7 @@ class ProviderConfigDialog(ctk.CTkToplevel):
         self.resizable(False, False)
         self.transient(parent)
         self.lift()
-        self.after(10, self._safe_grab)
+        self.after(10, lambda: _safe_grab(self))
 
         self._name = provider_name
         self._cfg  = load_config()
@@ -428,12 +474,6 @@ class ProviderConfigDialog(ctk.CTkToplevel):
             self._cfg[f"{name}_{key}"] = var.get().strip()
         save_config(self._cfg)
         self.destroy()
-    def _safe_grab(self):
-        try:
-            self.wait_visibility()
-            self.grab_set()
-        except Exception:
-            pass
 
 
 # ---------------------------------------------------------------------------
@@ -450,7 +490,9 @@ class GenerateToneDialog(ctk.CTkToplevel):
         super().__init__(parent)
         self.title("Generate Tone with AI")
         self.resizable(False, False)
-        self.grab_set()
+        self.transient(parent)
+        self.lift()
+        self.after(10, lambda: _safe_grab(self))
 
         self._on_tone_generated = on_tone_generated
         self._cfg     = load_config()
@@ -1295,7 +1337,7 @@ class ManualHLXDialog(ctk.CTkToplevel):
         self.minsize(660, 460)
         self.transient(parent)
         self.lift()
-        self.after(10, self._safe_grab)
+        self.after(10, lambda: _safe_grab(self))
 
         self._description = description
         self._on_result   = on_result_callback
@@ -1311,13 +1353,6 @@ class ManualHLXDialog(ctk.CTkToplevel):
 
         self._step = 1
         self._build_ui()
-
-    def _safe_grab(self):
-        try:
-            self.wait_visibility()
-            self.grab_set()
-        except Exception:
-            pass
 
     # ------------------------------------------------------------------
     # UI construction
@@ -1443,60 +1478,7 @@ class ManualHLXDialog(ctk.CTkToplevel):
 
     def _copy_prompt(self, txt_widget) -> None:
         copy_text = txt_widget.get("1.0", "end-1c")
-
-        ok = False
-        method = "tk"
-        err = None
-
-        try:
-            if os.environ.get("WAYLAND_DISPLAY") and shutil.which("wl-copy"):
-                subprocess.run(
-                    ["wl-copy"],
-                    input=copy_text,
-                    text=True,
-                    check=True,
-                )
-                method = "wl-copy"
-                ok = True
-
-                if shutil.which("wl-paste"):
-                    pasted = subprocess.run(
-                        ["wl-paste", "-n"],
-                        capture_output=True,
-                        text=True,
-                        check=True,
-                    ).stdout
-                    ok = (pasted == copy_text)
-
-            elif os.environ.get("DISPLAY") and shutil.which("xclip"):
-                subprocess.run(
-                    ["xclip", "-selection", "clipboard"],
-                    input=copy_text,
-                    text=True,
-                    check=True,
-                )
-                method = "xclip"
-                ok = True
-
-                pasted = subprocess.run(
-                    ["xclip", "-selection", "clipboard", "-o"],
-                    capture_output=True,
-                    text=True,
-                    check=True,
-                ).stdout
-                ok = (pasted == copy_text)
-
-            else:
-                self.clipboard_clear()
-                self.clipboard_append(copy_text)
-                self.update()
-                method = "tk"
-                ok = True
-
-        except Exception as exc:
-            err = exc
-            ok = False
-
+        ok, method, err = _set_clipboard(self, copy_text)
         if hasattr(self, "_copy_status_lbl") and self._copy_status_lbl.winfo_exists():
             if ok:
                 self._copy_status_lbl.configure(
@@ -1574,7 +1556,9 @@ class GeneratePresetDialog(ctk.CTkToplevel):
         self.title("Generate HX Stomp Preset")
         self.resizable(False, False)
         self.minsize(520, 380)
-        self.grab_set()
+        self.transient(parent)
+        self.lift()
+        self.after(10, lambda: _safe_grab(self))
 
         self._panel = HLXWorkspacePanel(self)
         self._panel.pack(fill="both", expand=True, padx=0, pady=0)
@@ -1867,7 +1851,9 @@ class PresetCatalogDialog(ctk.CTkToplevel):
         self.geometry("640x520")
         self.resizable(True, True)
         self.minsize(600, 400)
-        self.grab_set()
+        self.transient(parent)
+        self.lift()
+        self.after(10, lambda: _safe_grab(self))
 
         self._panel = PresetCatalogPanel(self)
         self._panel.pack(fill="both", expand=True)

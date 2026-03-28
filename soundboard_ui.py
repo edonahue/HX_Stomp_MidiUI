@@ -77,6 +77,19 @@ _TONE_CAT_COLORS: dict[str, str] = {
 
 
 # ---------------------------------------------------------------------------
+# UI helpers
+# ---------------------------------------------------------------------------
+
+def _safe_grab(window: ctk.CTkToplevel) -> None:
+    """Deferred grab_set() that survives X11/Wayland window-visibility timing."""
+    try:
+        window.wait_visibility()
+        window.grab_set()
+    except Exception:
+        pass
+
+
+# ---------------------------------------------------------------------------
 # Helper: color math
 # ---------------------------------------------------------------------------
 
@@ -129,7 +142,9 @@ class ConnectDialog(ctk.CTkToplevel):
         super().__init__(parent)
         self.title("Connect to MIDI Port")
         self.resizable(False, False)
-        self.grab_set()
+        self.transient(parent)
+        self.lift()
+        self.after(10, lambda: _safe_grab(self))
         self._on_connect = on_connect
         self._ports: list[str] = []
 
@@ -234,7 +249,9 @@ class ToneDialog(ctk.CTkToplevel):
         super().__init__(parent)
         self.title(title)
         self.resizable(False, False)
-        self.grab_set()
+        self.transient(parent)
+        self.lift()
+        self.after(10, lambda: _safe_grab(self))
         self.result: Optional[Tone] = None
 
         tone = tone or Tone(name="", preset=0)
@@ -1219,7 +1236,9 @@ class SoundboardApp(ctk.CTk):
         win = ctk.CTkToplevel(self)
         win.title("Getting Started")
         win.resizable(False, False)
-        win.grab_set()
+        win.transient(self)
+        win.lift()
+        win.after(10, lambda: _safe_grab(win))
 
         def section(title: str, body: str) -> None:
             hdr = ctk.CTkFrame(win, fg_color=_BG_CARD, corner_radius=6)

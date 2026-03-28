@@ -414,7 +414,7 @@ def build_hlx(preset_name: str, blocks_spec: list[dict],
             if snapshots_spec and idx < len(snapshots_spec):
                 snap_spec  = snapshots_spec[idx]
                 snap_name  = str(snap_spec.get("name", f"SNAPSHOT {idx + 1}"))[:12]
-                raw_states = snap_spec.get("block_states", {})
+                raw_states = snap_spec.get("block_states") or {}
                 # Only keep keys that exist in snapshot_blocks; fill missing with default
                 block_states = {
                     k: bool(raw_states.get(k, v))
@@ -783,7 +783,7 @@ def parse_hlx_response(raw: str, description: str) -> PresetResult:
                     snapshots_spec.append({
                         "name":        str(snap.get("name", ""))[:12],
                         "description": str(snap.get("description", "")),
-                        "block_states": snap.get("block_states", {}),
+                        "block_states": snap.get("block_states") or {},
                     })
 
         # Build the .hlx structure
