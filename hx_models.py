@@ -56,6 +56,28 @@ AMP_MODELS: list[HXModel] = [
         aliases     = ["Fender Deluxe", "Deluxe Reverb", "5E3"],
     ),
     HXModel(
+        model_id    = "HD2_AmpUSSuperNorm",
+        name        = "US Super Norm",
+        category    = "Amp",
+        description = "Fender Super Reverb Normal channel. Big, open American clean. 4x10 cabinet punch. Blues and country.",
+        default_params = {"Drive": 0.30, "Bass": 0.50, "Mid": 0.50, "Treble": 0.58,
+                          "Master": 0.80, "ChVol": 1.0, "Sag": 0.60,
+                          "Bias": 0.55, "BiasX": 0.50, "Hum": 0.50, "Ripple": 0.50},
+        paired_cab  = "HD2_CabMicIr_4x10TweedP10R",
+        aliases     = ["Fender Super Reverb", "Super Reverb", "Super 6G4"],
+    ),
+    HXModel(
+        model_id    = "HD2_AmpUSSuperVib",
+        name        = "US Super Vib",
+        category    = "Amp",
+        description = "Fender Super Reverb Vibrato channel. Same American clean with built-in Fender tremolo character. Surf and vintage.",
+        default_params = {"Drive": 0.30, "Bass": 0.50, "Mid": 0.50, "Treble": 0.58,
+                          "Master": 0.80, "ChVol": 1.0, "Sag": 0.60,
+                          "Bias": 0.55, "BiasX": 0.50, "Hum": 0.50, "Ripple": 0.50},
+        paired_cab  = "HD2_CabMicIr_4x10TweedP10R",
+        aliases     = ["Super Reverb Vibrato", "Super Reverb vib", "Fender vibrato channel"],
+    ),
+    HXModel(
         model_id    = "HD2_AmpTweedBluesBrt",
         name        = "Tweed Blues Brt",
         category    = "Amp",
@@ -78,7 +100,7 @@ AMP_MODELS: list[HXModel] = [
         aliases     = ["Matchless DC30", "DC-30", "Matchless"],
     ),
     HXModel(
-        model_id    = "HD2_AmpMandarin80",  # VERIFY against firmware
+        model_id    = "HD2_AmpMandarin80",
         name        = "Mandarin 80",
         category    = "Amp",
         description = "Orange AD30-style. Warm British crunch, vocal midrange. Rock and indie.",
@@ -86,7 +108,18 @@ AMP_MODELS: list[HXModel] = [
                           "Master": 0.70, "ChVol": 1.0, "Sag": 0.55,
                           "Bias": 0.50, "BiasX": 0.50, "Hum": 0.50, "Ripple": 0.50},
         paired_cab  = "HD2_CabMicIr_4x12Greenback25",
-        aliases     = ["Orange", "Orange AD30", "Orange OR15", "Orange Rockerverb"],
+        aliases     = ["Orange", "Orange AD30", "Orange OR15"],
+    ),
+    HXModel(
+        model_id    = "HD2_AmpMandarinRocker",
+        name        = "Mandarin Rocker",
+        category    = "Amp",
+        description = "Orange Rockerverb-style. More headroom than the 80, bigger clean range, heavier crunch. Rock and hard rock.",
+        default_params = {"Drive": 0.60, "Bass": 0.50, "Mid": 0.55, "Treble": 0.55,
+                          "Master": 0.65, "ChVol": 1.0, "Sag": 0.50,
+                          "Bias": 0.50, "BiasX": 0.50, "Hum": 0.50, "Ripple": 0.50},
+        paired_cab  = "HD2_CabMicIr_4x12Greenback25",
+        aliases     = ["Orange Rockerverb", "Rockerverb", "Orange RV50"],
     ),
     HXModel(
         model_id    = "HD2_AmpA30FawnNrm",
@@ -100,7 +133,7 @@ AMP_MODELS: list[HXModel] = [
         aliases     = ["Vox AC30", "AC30", "AC-30"],
     ),
     HXModel(
-        model_id    = "HD2_AmpEssexA15",  # VERIFY against firmware
+        model_id    = "HD2_AmpEssexA15",
         name        = "Essex A15",
         category    = "Amp",
         description = "Vox AC15. Chimey, lower-output EL84 character. Sweeter breakup than the AC30.",
@@ -147,6 +180,18 @@ AMP_MODELS: list[HXModel] = [
         aliases     = ["Marshall JCM800", "JCM 800", "JMP", "2203", "2204"],
     ),
     HXModel(
+        model_id    = "HD2_AmpBritJ45Brt",
+        name        = "Brit J45 Brt",
+        category    = "Amp",
+        description = "Marshall JMP 45W Bright channel. Tighter, more presence than the Normal channel. 70s hard rock lead.",
+        default_params = {"Drive": 0.62, "Bass": 0.45, "Mid": 0.55, "Treble": 0.62,
+                          "Presence": 0.55, "Master": 0.68, "ChVol": 1.0,
+                          "Sag": 0.50, "Bias": 0.50, "BiasX": 0.50,
+                          "Hum": 0.50, "Ripple": 0.50},
+        paired_cab  = "HD2_CabMicIr_4x12Greenback25",
+        aliases     = ["Marshall Bright", "JMP Bright", "Superlead Bright"],
+    ),
+    HXModel(
         model_id    = "HD2_AmpPlacaterDirty",
         name        = "Placater Dirty",
         category    = "Amp",
@@ -159,8 +204,8 @@ AMP_MODELS: list[HXModel] = [
         aliases     = ["Friedman BE-100", "BE100", "Friedman"],
     ),
     HXModel(
-        model_id    = "HD2_AmpPlacaterNrm",
-        name        = "Placater Nrm",
+        model_id    = "HD2_AmpPlacaterClean",
+        name        = "Placater Clean",
         category    = "Amp",
         description = "Friedman BE-100 Normal channel. Edge-of-breakup clean to crunch. Touch-sensitive, harmonically rich.",
         default_params = {"Drive": 0.35, "Bass": 0.50, "Mid": 0.55, "Treble": 0.55,
@@ -181,6 +226,18 @@ AMP_MODELS: list[HXModel] = [
                           "Hum": 0.50, "Ripple": 0.50},
         paired_cab  = "HD2_CabMicIr_4x12CaliV30",
         aliases     = ["Mesa Boogie", "Dual Rectifier", "Mesa Recto", "Rectifier"],
+    ),
+    HXModel(
+        model_id    = "HD2_AmpCaliIVLead",
+        name        = "Cali IV Lead",
+        category    = "Amp",
+        description = "Mesa Boogie Mark IV Lead channel. Complex multi-stage gain, versatile from crunch to modern high-gain. Prog and metal.",
+        default_params = {"Drive": 0.65, "Bass": 0.48, "Mid": 0.42, "Treble": 0.55,
+                          "Presence": 0.55, "Master": 0.62, "ChVol": 1.0,
+                          "Sag": 0.40, "Bias": 0.50, "BiasX": 0.50,
+                          "Hum": 0.50, "Ripple": 0.50},
+        paired_cab  = "HD2_CabMicIr_4x12CaliV30",
+        aliases     = ["Mesa Mark IV", "Mark IV", "Mark 4", "Mesa Mark 4"],
     ),
     HXModel(
         model_id    = "HD2_AmpPVPanama",
@@ -207,7 +264,7 @@ AMP_MODELS: list[HXModel] = [
         aliases     = ["Two-Rock", "Two Rock"],
     ),
     HXModel(
-        model_id    = "HD2_AmpRevvGen120",
+        model_id    = "HD2_AmpRevvGenRed",
         name        = "Revv Gen Red",
         category    = "Amp",
         description = "Revv Generator 120 Ch3 Red. Modern high-gain, tight low end, smooth lead. Metal/prog.",
@@ -217,6 +274,18 @@ AMP_MODELS: list[HXModel] = [
                           "Hum": 0.50, "Ripple": 0.50},
         paired_cab  = "HD2_CabMicIr_4x12CaliV30",
         aliases     = ["Revv Generator", "Revv Gen", "Revv 120"],
+    ),
+    HXModel(
+        model_id    = "HD2_AmpRevvGenPurple",
+        name        = "Revv Gen Purple",
+        category    = "Amp",
+        description = "Revv Generator 120 Ch4 Purple. Ultra-high-gain, massive gain range, tight modern attack. Metal and djent.",
+        default_params = {"Drive": 0.72, "Bass": 0.50, "Mid": 0.45, "Treble": 0.55,
+                          "Presence": 0.55, "Master": 0.58, "ChVol": 1.0,
+                          "Sag": 0.30, "Bias": 0.50, "BiasX": 0.50,
+                          "Hum": 0.50, "Ripple": 0.50},
+        paired_cab  = "HD2_CabMicIr_4x12CaliV30",
+        aliases     = ["Revv Purple", "Revv Gen 120 Purple", "Revv high gain"],
     ),
     HXModel(
         model_id    = "HD2_AmpLine6Badonk",
@@ -231,8 +300,8 @@ AMP_MODELS: list[HXModel] = [
         aliases     = ["Badonk"],
     ),
     HXModel(
-        model_id    = "HD2_AmpDasBenzin",
-        name        = "Das Benzin",
+        model_id    = "HD2_AmpDasBenzinLead",
+        name        = "Das Benzin Lead",
         category    = "Amp",
         description = "Diezel Herbert-style. Three channels, extreme gain, surgical EQ. Modern metal.",
         default_params = {"Drive": 0.70, "Bass": 0.50, "Mid": 0.45, "Treble": 0.55,
@@ -241,6 +310,42 @@ AMP_MODELS: list[HXModel] = [
                           "Hum": 0.50, "Ripple": 0.50},
         paired_cab  = "HD2_CabMicIr_4x12XXLV30",
         aliases     = ["Diezel Herbert", "Diezel VH4", "Diezel"],
+    ),
+    HXModel(
+        model_id    = "HD2_AmpDasBenzinMega",
+        name        = "Das Benzin Mega",
+        category    = "Amp",
+        description = "Diezel Herbert Mega channel. Maximum gain, crushing low end, tight attack. Drop-tuned metal.",
+        default_params = {"Drive": 0.78, "Bass": 0.52, "Mid": 0.40, "Treble": 0.55,
+                          "Presence": 0.52, "Master": 0.55, "ChVol": 1.0,
+                          "Sag": 0.25, "Bias": 0.50, "BiasX": 0.50,
+                          "Hum": 0.50, "Ripple": 0.50},
+        paired_cab  = "HD2_CabMicIr_4x12XXLV30",
+        aliases     = ["Diezel Mega", "Diezel Herbert Mega", "Diezel Ch3"],
+    ),
+    HXModel(
+        model_id    = "HD2_AmpGermanXtraBlue",
+        name        = "German Xtra Blue",
+        category    = "Amp",
+        description = "Bogner Ecstasy Blue channel. Rich, complex clean to light crunch. Chimey, 3D character. Blues-rock and clean tones.",
+        default_params = {"Drive": 0.38, "Bass": 0.50, "Mid": 0.52, "Treble": 0.58,
+                          "Presence": 0.52, "Master": 0.80, "ChVol": 1.0,
+                          "Sag": 0.55, "Bias": 0.50, "BiasX": 0.50,
+                          "Hum": 0.50, "Ripple": 0.50},
+        paired_cab  = "HD2_CabMicIr_4x12Greenback25",
+        aliases     = ["Bogner Ecstasy Blue", "Ecstasy Blue", "Bogner clean", "Bogner Blue"],
+    ),
+    HXModel(
+        model_id    = "HD2_AmpGermanXtraRed",
+        name        = "German Xtra Red",
+        category    = "Amp",
+        description = "Bogner Ecstasy Red channel. High-gain, articulate and harmonically rich. Classic boutique rock lead.",
+        default_params = {"Drive": 0.65, "Bass": 0.50, "Mid": 0.50, "Treble": 0.55,
+                          "Presence": 0.55, "Master": 0.65, "ChVol": 1.0,
+                          "Sag": 0.42, "Bias": 0.50, "BiasX": 0.50,
+                          "Hum": 0.50, "Ripple": 0.50},
+        paired_cab  = "HD2_CabMicIr_4x12CaliV30",
+        aliases     = ["Bogner Ecstasy Red", "Ecstasy Red", "Bogner", "Bogner Ecstasy"],
     ),
     HXModel(
         model_id    = "HD2_AmpVoltageQueen",
@@ -254,7 +359,7 @@ AMP_MODELS: list[HXModel] = [
         aliases     = ["Victoria 35115", "Victoria"],
     ),
     HXModel(
-        model_id    = "HD2_AmpUSFullertonNrm",  # VERIFY: may be HD2_AmpFullertonNrm (no US prefix)
+        model_id    = "HD2_AmpFullertonNrm",
         name        = "Fullerton Nrm",
         category    = "Amp",
         description = "Fender Princeton-style. Warm, punchy clean with gentle bloom. Blues and country.",
@@ -265,8 +370,8 @@ AMP_MODELS: list[HXModel] = [
         aliases     = ["Fender Princeton", "Princeton Reverb", "Princeton"],
     ),
     HXModel(
-        model_id    = "HD2_AmpGrammaticoNYC",  # VERIFY: may be HD2_AmpGrammaticoNyc
-        name        = "Grammatico NYC",
+        model_id    = "HD2_AmpGrammaticoNrm",
+        name        = "Grammatico Nrm",
         category    = "Amp",
         description = "Grammatico LaGrange. Open, airy clean with complex bloom. Boutique clean platform.",
         default_params = {"Drive": 0.30, "Bass": 0.50, "Mid": 0.50, "Treble": 0.55,
@@ -275,6 +380,30 @@ AMP_MODELS: list[HXModel] = [
                           "Hum": 0.50, "Ripple": 0.50},
         paired_cab  = "HD2_CabMicIr_1x12USDeluxe",
         aliases     = ["Grammatico", "LaGrange"],
+    ),
+    HXModel(
+        model_id    = "HD2_AmpGrammaticoBrt",
+        name        = "Grammatico Brt",
+        category    = "Amp",
+        description = "Grammatico LaGrange Bright channel. More presence and cut than Nrm. Open, airy boutique clean.",
+        default_params = {"Drive": 0.30, "Bass": 0.48, "Mid": 0.48, "Treble": 0.62,
+                          "Presence": 0.55, "Master": 0.85, "ChVol": 1.0,
+                          "Sag": 0.60, "Bias": 0.50, "BiasX": 0.50,
+                          "Hum": 0.50, "Ripple": 0.50},
+        paired_cab  = "HD2_CabMicIr_1x12USDeluxe",
+        aliases     = ["Grammatico Bright", "LaGrange Bright"],
+    ),
+    HXModel(
+        model_id    = "HD2_AmpGSG100",
+        name        = "GSG-100",
+        category    = "Amp",
+        description = "Grammatico GSG-100. Warm, articulate clean with natural bloom. Boutique clean platform. Added in firmware 3.60.",
+        default_params = {"Drive": 0.28, "Bass": 0.50, "Mid": 0.50, "Treble": 0.58,
+                          "Presence": 0.50, "Master": 0.85, "ChVol": 1.0,
+                          "Sag": 0.62, "Bias": 0.50, "BiasX": 0.50,
+                          "Hum": 0.50, "Ripple": 0.50},
+        paired_cab  = "HD2_CabMicIr_1x12USDeluxe",
+        aliases     = ["Grammatico GSG", "GSG 100", "GSG100"],
     ),
     HXModel(
         model_id    = "HD2_AmpSoupPro",
@@ -319,7 +448,7 @@ AMP_MODELS: list[HXModel] = [
                           "Master": 0.70, "ChVol": 1.0, "Sag": 0.55,
                           "Bias": 0.50, "BiasX": 0.50, "Hum": 0.50, "Ripple": 0.50},
         paired_cab  = "HD2_CabMicIr_4x12Greenback25",
-        aliases     = ["Divided by 13", "DB13", "JRT", "Bogner Ecstasy", "Bogner"],
+        aliases     = ["Divided by 13", "DB13", "JRT 9/15"],
     ),
     HXModel(
         model_id    = "HD2_AmpHiway100",
@@ -332,6 +461,18 @@ AMP_MODELS: list[HXModel] = [
                           "Hum": 0.50, "Ripple": 0.50},
         paired_cab  = "HD2_CabMicIr_4x12Greenback25",
         aliases     = ["Hiwatt", "Hiwatt DR103", "DR103"],
+    ),
+    HXModel(
+        model_id    = "HD2_AmpWhoWatt100",
+        name        = "Who Watt 100",
+        category    = "Amp",
+        description = "Hiwatt-style 100W with more preamp gain. Clean, punchy British character. Rock and power-pop.",
+        default_params = {"Drive": 0.45, "Bass": 0.50, "Mid": 0.55, "Treble": 0.60,
+                          "Presence": 0.55, "Master": 0.72, "ChVol": 1.0,
+                          "Sag": 0.50, "Bias": 0.50, "BiasX": 0.50,
+                          "Hum": 0.50, "Ripple": 0.50},
+        paired_cab  = "HD2_CabMicIr_4x12Greenback25",
+        aliases     = ["Hiwatt Who Watt", "Who Watt", "Hiwatt 100"],
     ),
 ]
 
@@ -510,14 +651,15 @@ DISTORTION_MODELS: list[HXModel] = [
         aliases     = ["Dallas Rangemaster", "Rangemaster", "treble booster"],
     ),
     HXModel(
-        model_id    = "HD2_DistPillarsOD",  # VERIFY against firmware
+        model_id    = "HD2_DistPillarsOD",
         name        = "Pillars OD",
         category    = "Distortion",
         description = "Line 6 original high-gain overdrive. Versatile gain stages from crunch to lead.",
         default_params = {"Drive": 0.60, "Bass": 0.50, "Treble": 0.50, "Level": 0.60},
+        aliases     = ["Pillars OD", "Line 6 OD"],
     ),
     HXModel(
-        model_id    = "HD2_DistStunner808",  # VERIFY against firmware
+        model_id    = "HD2_DistStunner808",
         name        = "Stunner 808",
         category    = "Distortion",
         description = "Heavier TS-variant with more gain and low-end. Modern metal rhythm boost.",
@@ -525,7 +667,7 @@ DISTORTION_MODELS: list[HXModel] = [
         aliases     = ["heavy Tube Screamer", "TS variant", "808 boost"],
     ),
     HXModel(
-        model_id    = "HD2_DistDeezOneVintage",  # VERIFY: may be HD2_DistDeezOneNrm or HD2_DistDeezOneVntg
+        model_id    = "HD2_DistDeezOneVintage",
         name        = "Deez One Vintage",
         category    = "Distortion",
         description = "High-gain drive pedal. Tight, punchy, scooped midrange. Pairs well with high-gain amps.",
@@ -533,7 +675,7 @@ DISTORTION_MODELS: list[HXModel] = [
         aliases     = ["Deez One", "Wampler Sovereign", "sovereign distortion"],
     ),
     HXModel(
-        model_id    = "HD2_DistSplitBand",  # VERIFY: may be HD2_DistSplitband (lowercase b)
+        model_id    = "HD2_DistSplitBand",
         name        = "Splitband",
         category    = "Distortion",
         description = "Frequency-selective distortion processes lows and highs separately. Unique texture.",
@@ -586,6 +728,7 @@ DELAY_MODELS: list[HXModel] = [
         category    = "Delay",
         description = "Stereo ping-pong delay. Wide, immersive. Ambient and lead.",
         default_params = {"Time": 0.35, "Feedback": 0.30, "Mix": 0.25, "Trails": True},
+        aliases     = ["ping-pong delay", "stereo delay"],
     ),
     HXModel(
         model_id    = "HD2_DelayAdriaticDelay",
@@ -593,6 +736,7 @@ DELAY_MODELS: list[HXModel] = [
         category    = "Delay",
         description = "TC Electronic TonePrint-style delay. Versatile, studio-quality repeats.",
         default_params = {"Time": 0.35, "Feedback": 0.30, "Mix": 0.25, "Trails": True},
+        aliases     = ["TC delay", "Nova Delay", "digital delay"],
     ),
     HXModel(
         model_id    = "HD2_DelayCosmos",
@@ -608,6 +752,7 @@ DELAY_MODELS: list[HXModel] = [
         category    = "Delay",
         description = "Reverses the delay signal. Swelling, dream-like texture. Ambient and experimental.",
         default_params = {"Time": 0.50, "Feedback": 0.25, "Mix": 0.30, "Trails": True},
+        aliases     = ["reverse delay", "backwards delay"],
     ),
 ]
 
@@ -623,6 +768,7 @@ REVERB_MODELS: list[HXModel] = [
         category    = "Reverb",
         description = "Classic studio plate reverb. Dense, smooth tail. Suits most genres.",
         default_params = {"Decay": 0.35, "Predelay": 0.0, "Mix": 0.22, "Trails": True},
+        aliases     = ["plate reverb", "EMT 140", "studio plate"],
     ),
     HXModel(
         model_id    = "HD2_Reverb63Spring",
@@ -630,6 +776,7 @@ REVERB_MODELS: list[HXModel] = [
         category    = "Reverb",
         description = "1963 tank spring reverb. Splashy, vintage character. Blues and surf.",
         default_params = {"Decay": 0.40, "Dwell": 0.50, "Mix": 0.22, "Trails": True},
+        aliases     = ["spring reverb", "surf reverb", "Fender spring tank"],
     ),
     HXModel(
         model_id    = "HD2_ReverbRoom",
@@ -637,6 +784,7 @@ REVERB_MODELS: list[HXModel] = [
         category    = "Reverb",
         description = "Small room ambience. Natural, realistic. Subtle presence without wash.",
         default_params = {"Decay": 0.25, "Predelay": 0.0, "Mix": 0.18, "Trails": True},
+        aliases     = ["room reverb", "small room"],
     ),
     HXModel(
         model_id    = "HD2_ReverbHall",
@@ -644,6 +792,7 @@ REVERB_MODELS: list[HXModel] = [
         category    = "Reverb",
         description = "Large concert hall reverb. Long, lush decay. Ambient and lead.",
         default_params = {"Decay": 0.55, "Predelay": 0.05, "Mix": 0.25, "Trails": True},
+        aliases     = ["hall reverb", "concert hall"],
     ),
     HXModel(
         model_id    = "HD2_ReverbGanymede",
@@ -667,6 +816,7 @@ REVERB_MODELS: list[HXModel] = [
         category    = "Reverb",
         description = "Shimmer reverb with octave shift. Ethereal, orchestral. Ambient and post-rock.",
         default_params = {"Decay": 0.65, "Mix": 0.32, "Trails": True},
+        aliases     = ["octave shimmer", "shimmer octave", "octo reverb"],
     ),
     HXModel(
         model_id    = "HD2_ReverbCave",
@@ -674,6 +824,7 @@ REVERB_MODELS: list[HXModel] = [
         category    = "Reverb",
         description = "Dark, cavernous reverb. Massive, slow decay. Doom, drone and dark ambient.",
         default_params = {"Decay": 0.75, "Predelay": 0.05, "Mix": 0.30, "Trails": True},
+        aliases     = ["cave reverb", "cavernous reverb"],
     ),
     HXModel(
         model_id    = "HD2_ReverbPlateaux",
@@ -697,6 +848,7 @@ MODULATION_MODELS: list[HXModel] = [
         category    = "Modulation",
         description = "Classic analog chorus. Lush, swirling. 80s clean tones.",
         default_params = {"Rate": 0.35, "Depth": 0.45, "Mix": 0.50},
+        aliases     = ["chorus", "Boss CE-2", "Dimension D", "chorus pedal"],
     ),
     HXModel(
         model_id    = "HD2_TremoloTremolo",
@@ -704,6 +856,7 @@ MODULATION_MODELS: list[HXModel] = [
         category    = "Modulation",
         description = "Classic optical tremolo. Pulsing volume. Surf and vintage country.",
         default_params = {"Rate": 0.40, "Depth": 0.60, "Wave": 0.0},
+        aliases     = ["tremolo", "optical trem", "Fender tremolo", "trem"],
     ),
     HXModel(
         model_id    = "HD2_FlangerGrayFlanger",
@@ -783,6 +936,7 @@ DYNAMICS_MODELS: list[HXModel] = [
         category    = "Dynamics",
         description = "Diamond CPR1 compressor. Transparent, musical. Suits clean to medium gain.",
         default_params = {"Comp": 0.45, "Attack": 0.40, "Gain": 0.0, "Mix": 1.0},
+        aliases     = ["Diamond CPR1", "Diamond compressor"],
     ),
     HXModel(
         model_id    = "HD2_CompressorKinkyComp",
@@ -806,6 +960,7 @@ DYNAMICS_MODELS: list[HXModel] = [
         category    = "Dynamics",
         description = "Simple noise gate. Cuts hum and hiss between notes.",
         default_params = {"Threshold": -65.0, "Decay": 0.10},
+        aliases     = ["noise gate", "gate", "noisegate"],
     ),
 ]
 
