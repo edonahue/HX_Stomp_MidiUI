@@ -20,9 +20,17 @@ Optional flags
 import argparse
 import sys
 
-import soundboard_ui
-from midi_interface import HXStompMidi, _FS_CC
-from soundboard_ui import SoundboardApp
+try:
+    import soundboard_ui
+    from midi_interface import HXStompMidi, _FS_CC
+    from soundboard_ui import SoundboardApp
+except ImportError as _exc:
+    print(
+        f"Missing dependency: {_exc}\n"
+        "Install requirements with:  pip install -r requirements.txt\n"
+        "On Linux you may also need: sudo apt install libasound2-dev libjack-dev"
+    )
+    sys.exit(1)
 
 
 # ---------------------------------------------------------------------------

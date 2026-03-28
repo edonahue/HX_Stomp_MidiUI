@@ -260,7 +260,12 @@ PROVIDERS: list[type[LLMProvider]] = [
 def get_provider(cfg: dict) -> LLMProvider:
     """Instantiate the provider specified in config (defaults to Anthropic)."""
     name = cfg.get("provider", "anthropic")
-    cls  = next((p for p in PROVIDERS if p.name == name), AnthropicProvider)
+    cls  = next((p for p in PROVIDERS if p.name == name), None)
+    if cls is None:
+        known = [p.name for p in PROVIDERS]
+        print(f"[LLM] Unknown provider '{name}' (known: {known}). "
+              "Falling back to Anthropic.")
+        cls = AnthropicProvider
     return cls(
         api_key  = cfg.get(f"{name}_api_key",  ""),
         model    = cfg.get(f"{name}_model",    ""),

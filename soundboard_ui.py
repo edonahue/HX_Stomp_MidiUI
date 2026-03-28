@@ -305,9 +305,17 @@ class ToneDialog(ctk.CTkToplevel):
             )
 
     def _ok(self) -> None:
+        name = self._vars["name"].get().strip()
+        if not name:
+            messagebox.showerror("Invalid input", "Tone name cannot be empty.", parent=self)
+            return
+        if len(name) > 64:
+            messagebox.showerror("Invalid input",
+                                 "Tone name must be 64 characters or fewer.", parent=self)
+            return
         try:
             self.result = Tone(
-                name     = self._vars["name"].get().strip(),
+                name     = name,
                 preset   = int(self._vars["preset"].get()),
                 snapshot = int(self._vars["snapshot"].get()),
                 bank_msb = int(self._vars["bank_msb"].get()),
@@ -567,7 +575,14 @@ class SoundboardApp(ctk.CTk):
         self.minsize(700, 520)
 
         self._midi   = HXStompMidi()
-        self._tones  = ToneManager(presets_file)
+        try:
+            self._tones = ToneManager(presets_file)
+        except ValueError as exc:
+            messagebox.showerror(
+                "Could not load presets",
+                f"{exc}\n\nStarting with an empty preset list."
+            )
+            self._tones = ToneManager.create_empty(presets_file)
         self._active: Optional[str] = None
         self._cols   = 4
         self._card_frames: dict[str, ctk.CTkFrame] = {}  # name → wrapper frame
