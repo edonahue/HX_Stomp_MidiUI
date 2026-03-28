@@ -1,14 +1,16 @@
-# HX Stomp Soundboard
+# HX Stomp — HLX Generator & Soundboard
 
 A dark-themed Python desktop app for the **Line 6 HX Stomp** and Helix-family
 processors. It has two distinct capabilities that work independently or together:
 
-**MIDI Soundboard** — click a tone card to instantly switch preset, bank, and
-snapshot on your device via USB MIDI.
+**AI Preset Tools** — describe a tone in plain English and get a complete `.hlx`
+preset file built from the real HX Stomp model catalog — amp, cab, and effects with
+starting parameters, per-block explanations, and three named snapshots, ready to
+import into HX Edit. Works with Claude, GPT-4o, Gemini, Ollama (local), or any
+AI chatbot via Manual Mode (no API key required).
 
-**AI Preset Tools** — describe a tone in plain English. Get a suggested card
-name, color, and category (labeling), or generate a complete `.hlx` preset file
-with real amp, cab, and effect models ready to import into HX Edit (generation).
+**MIDI Soundboard** — organise your tones as clickable cards that instantly switch
+preset, bank, and snapshot on your HX Stomp via USB MIDI.
 
 ![Python 3.9+](https://img.shields.io/badge/python-3.9%2B-blue)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
@@ -88,20 +90,21 @@ pip install -r requirements.txt
 sudo apt install libasound2-dev libjack-dev
 ```
 
-**No MIDI ports found / HX Stomp not detected**
-- Confirm the device is connected via USB and powered on.
-- Check what ports are visible: `python main.py --list-ports`
-- On Linux, ensure your user is in the `audio` group:
-  `sudo usermod -aG audio $USER` (then log out and back in).
-- Use `--mock-midi` to run the soundboard without any hardware.
-
 **AI tone generation hangs or shows an error**
 - Check your API key via the **⚙ Configure…** button in the LLM panel.
 - For Ollama: confirm the server is running (`ollama serve`) and the model
   is pulled (`ollama pull llama3.2`).
 - API calls time out after 60 seconds — a slow connection will show an error
   rather than hanging indefinitely.
-- Use `--no-llm` to run the soundboard with AI features disabled.
+- No API key? Use **📋 Manual Mode** to copy the prompt to any AI chatbot.
+- Use `--no-llm` to run the app with AI features disabled.
+
+**No MIDI ports found / HX Stomp not detected**
+- Confirm the device is connected via USB and powered on.
+- Check what ports are visible: `python main.py --list-ports`
+- On Linux, ensure your user is in the `audio` group:
+  `sudo usermod -aG audio $USER` (then log out and back in).
+- Use `--mock-midi` to run the soundboard without any hardware.
 
 **Presets file is empty or shows an error on startup**
 - The app will show a dialog and start with an empty preset list.
@@ -111,13 +114,147 @@ sudo apt install libasound2-dev libjack-dev
 ---
 
 After launch the app opens to the **🎸 HLX Generator** tab — describe a tone,
-configure your AI provider once, and generate a ready-to-import `.hlx` preset.
-Click the **🎵 Soundboard** tab to manage tone cards and connect to your HX Stomp via MIDI
-(**MIDI → Connect…** to select your port).
+configure your AI provider once, and generate a ready-to-import `.hlx` preset
+(see [Part 1 — AI Preset Tools](#part-1--ai-preset-tools)).
+Click the **🎵 Soundboard** tab to manage tone cards and connect to your HX Stomp
+via MIDI (see [Part 2 — MIDI Soundboard](#part-2--midi-soundboard)).
 
 ---
 
-## Part 1 — MIDI Soundboard
+## Part 1 — AI Preset Tools
+
+The AI features require an API key or a running Ollama server.
+See [AI Providers](#ai-providers) below. AI features work independently of
+MIDI — no device connection required.
+
+---
+
+### ✨ AI Tone Labeling
+
+**What it does:** Takes a plain-English description and suggests a tone card
+**name**, **color**, **category**, and **snapshot index** — purely as display
+metadata for the soundboard grid.
+
+**What it does not do:** It cannot touch amp models, effects, or any signal-chain
+parameter. MIDI is output-only; the app has no visibility into what sound is in
+any slot on your HX Stomp. Use
+[AI Preset Generation](#-ai-preset-generation) to build actual .hlx presets.
+
+#### How to Use
+
+1. Click **✨ Label Tone** in the toolbar or **Tones → ✨ Generate Tone…**
+2. Select a provider and configure your API key if needed
+3. Describe your tone, e.g. *"dark ambient shimmer with long reverb"*
+4. Click **✨ Generate** — the result fills the Add Tone form
+5. Enter the correct preset number from your HX Stomp, then click **OK**
+
+---
+
+### 📦 AI Preset Generation
+
+**What it does:** Takes a tone description or artist name and produces a
+complete `.hlx` preset file with real HX Stomp amp, cab, and effect models —
+with starting parameters, per-block explanations, and three distinct snapshots.
+The file is imported into HX Edit offline; no device connection needed.
+
+#### How to Use
+
+1. Open the **🎸 HLX Generator** tab — it is the default tab on launch.
+   From the Soundboard tab: **Tones → 🎸 Open HLX Generator**.
+2. Configure your provider if not already set
+3. Describe the tone, e.g.:
+   - *"bluesy SRV crunch with tape delay and spring reverb"*
+   - *"tight metal rhythm tone, Mesa-style, no reverb"*
+   - *"clean Vox AC30 jangle like The Edge"*
+   - *"dark ambient shoegaze with shimmer and chorus"*
+4. Click **📦 Generate Preset** — result panel appears with:
+   - Signal chain strip — each block in order with category color
+   - Per-block explanation of why each model was chosen
+   - Three named snapshots (e.g. Rhythm / Lead / Clean)
+   - Overall design rationale
+5. Click **💾 Save .hlx…** to write the file
+6. In **HX Edit**: drag onto an empty preset slot or
+   **File → Import Preset…**, then sync to device
+
+Click **🔄 Regenerate** to try a fresh take on the same description.
+
+#### What Gets Generated
+
+| Element | Detail |
+|---|---|
+| Amp + matched cab | One amp block with best-match default cab |
+| Effect chain | Up to 5 blocks: distortion, dynamics, EQ, modulation, delay, reverb |
+| Signal chain order | Dynamics → Drive → Amp → EQ → Mod → Delay → Reverb |
+| Starting parameters | Sensible defaults; tune further in HX Edit |
+| Three snapshots | Distinct named states, e.g. Rhythm / Lead / Clean — per-block bypass states set |
+| Explanations | Per-block and overall rationale shown in the UI |
+
+Full guide, tips, and troubleshooting →
+**[docs/HLX_GENERATION.md](docs/HLX_GENERATION.md)**
+
+---
+
+### 📋 Manual Mode — Use Any AI Chatbot
+
+Don't have an API key? Click **📋 Manual Mode** next to the Generate Preset button.
+
+1. The app assembles the full prompt (HX Stomp model catalog + your description).
+2. Copy it to the clipboard and paste into any capable AI chatbot — Claude.ai,
+   ChatGPT, Gemini, or similar.
+3. Copy the chatbot's response back into the app and click **✓ Import & Validate**.
+
+The same validation pipeline runs: unknown model IDs are fuzzy-matched,
+parameters are clamped to valid ranges, and a summary of any corrections is shown.
+The result renders identically to an API-generated preset — you can save, export,
+and catalog it the same way.
+
+**Recommended models:** Claude Sonnet or later, GPT-4o, Gemini 1.5 Pro.
+The prompt includes the full HX Stomp model catalog (~4 000 tokens) so a
+model with a large context window produces the most accurate results.
+
+---
+
+### 📋 Preset Catalog
+
+All generated presets are saved to `~/.hxstomp/presets/` and tracked in
+`catalog.json`. The **Preset Catalog** panel sits in the lower half of the
+**🎸 HLX Generator** tab, below the generation workspace. It updates automatically
+after each save.
+
+Each catalog entry shows the preset name, date, description, signal chain
+strip, snapshot names, and design rationale. From there you can:
+
+- **📂 Show** — reveal the `.hlx` file in your system file manager
+- **💾 Export…** — copy the file to a custom location
+- **🗑** — remove the entry from the catalog (file is not deleted)
+
+---
+
+### AI Providers
+
+| Provider | Default model | Requires | Sign-up |
+|---|---|---|---|
+| Anthropic (Claude) | `claude-haiku-4-5` | API key | [console.anthropic.com](https://console.anthropic.com) |
+| OpenAI (GPT) | `gpt-4o-mini` | API key | [platform.openai.com](https://platform.openai.com) |
+| Google Gemini | `gemini-1.5-flash` | API key | [aistudio.google.com](https://aistudio.google.com) |
+| Ollama (local) | `llama3.2` | Ollama server | `ollama pull llama3.2 && ollama serve` |
+
+Configure via the **⚙ Configure…** button in either AI dialog. API keys are
+saved to `~/.hxstomp/config.json` and reused across sessions.
+
+**Environment variable shortcut:**
+
+```bash
+ANTHROPIC_API_KEY=sk-ant-...  python main.py
+OPENAI_API_KEY=sk-...         python main.py
+GOOGLE_API_KEY=AIza...        python main.py
+```
+
+Full per-provider setup → **[docs/LLM_PROVIDERS.md](docs/LLM_PROVIDERS.md)**
+
+---
+
+## Part 2 — MIDI Soundboard
 
 ### Connecting to Your HX Stomp
 
@@ -270,139 +407,6 @@ Full CC map, bank/setlist addressing, footswitch numbering →
 
 ---
 
-## Part 2 — AI Preset Tools
-
-The AI features require an API key or a running Ollama server.
-See [AI Providers](#ai-providers) below. AI features work independently of
-MIDI — no device connection required.
-
----
-
-### ✨ AI Tone Labeling
-
-**What it does:** Takes a plain-English description and suggests a tone card
-**name**, **color**, **category**, and **snapshot index** — purely as display
-metadata for the soundboard grid.
-
-**What it does not do:** It cannot touch amp models, effects, or any signal-chain
-parameter. MIDI is output-only; the app has no visibility into what sound is in
-any slot on your HX Stomp. Use
-[AI Preset Generation](#-ai-preset-generation) to build actual .hlx presets.
-
-#### How to Use
-
-1. Click **✨ Label Tone** in the toolbar or **Tones → ✨ Generate Tone…**
-2. Select a provider and configure your API key if needed
-3. Describe your tone, e.g. *"dark ambient shimmer with long reverb"*
-4. Click **✨ Generate** — the result fills the Add Tone form
-5. Enter the correct preset number from your HX Stomp, then click **OK**
-
----
-
-### 📦 AI Preset Generation
-
-**What it does:** Takes a tone description or artist name and produces a
-complete `.hlx` preset file with real HX Stomp amp, cab, and effect models —
-with starting parameters, per-block explanations, and three distinct snapshots.
-The file is imported into HX Edit offline; no device connection needed.
-
-#### How to Use
-
-1. Open the **🎸 HLX Generator** tab — it is the default tab on launch.
-   From the Soundboard tab: **Tones → 🎸 Open HLX Generator**.
-2. Configure your provider if not already set
-3. Describe the tone, e.g.:
-   - *"bluesy SRV crunch with tape delay and spring reverb"*
-   - *"tight metal rhythm tone, Mesa-style, no reverb"*
-   - *"clean Vox AC30 jangle like The Edge"*
-   - *"dark ambient shoegaze with shimmer and chorus"*
-4. Click **📦 Generate Preset** — result panel appears with:
-   - Signal chain strip — each block in order with category color
-   - Per-block explanation of why each model was chosen
-   - Three named snapshots (e.g. Rhythm / Lead / Clean)
-   - Overall design rationale
-5. Click **💾 Save .hlx…** to write the file
-6. In **HX Edit**: drag onto an empty preset slot or
-   **File → Import Preset…**, then sync to device
-
-Click **🔄 Regenerate** to try a fresh take on the same description.
-
-#### What Gets Generated
-
-| Element | Detail |
-|---|---|
-| Amp + matched cab | One amp block with best-match default cab |
-| Effect chain | Up to 5 blocks: distortion, dynamics, EQ, modulation, delay, reverb |
-| Signal chain order | Dynamics → Drive → Amp → EQ → Mod → Delay → Reverb |
-| Starting parameters | Sensible defaults; tune further in HX Edit |
-| Three snapshots | Distinct named states, e.g. Rhythm / Lead / Clean — per-block bypass states set |
-| Explanations | Per-block and overall rationale shown in the UI |
-
-Full guide, tips, and troubleshooting →
-**[docs/HLX_GENERATION.md](docs/HLX_GENERATION.md)**
-
----
-
-### 📋 Manual Mode — Use Any AI Chatbot
-
-Don't have an API key? Click **📋 Manual Mode** next to the Generate Preset button.
-
-1. The app assembles the full prompt (HX Stomp model catalog + your description).
-2. Copy it to the clipboard and paste into any capable AI chatbot — Claude.ai,
-   ChatGPT, Gemini, or similar.
-3. Copy the chatbot's response back into the app and click **✓ Import & Validate**.
-
-The same validation pipeline runs: unknown model IDs are fuzzy-matched,
-parameters are clamped to valid ranges, and a summary of any corrections is shown.
-The result renders identically to an API-generated preset — you can save, export,
-and catalog it the same way.
-
-**Recommended models:** Claude Sonnet or later, GPT-4o, Gemini 1.5 Pro.
-The prompt includes the full HX Stomp model catalog (~4 000 tokens) so a
-model with a large context window produces the most accurate results.
-
----
-
-### 📋 Preset Catalog
-
-All generated presets are saved to `~/.hxstomp/presets/` and tracked in
-`catalog.json`. The **Preset Catalog** panel sits in the lower half of the
-**🎸 HLX Generator** tab, below the generation workspace. It updates automatically
-after each save.
-
-Each catalog entry shows the preset name, date, description, signal chain
-strip, snapshot names, and design rationale. From there you can:
-
-- **📂 Show** — reveal the `.hlx` file in your system file manager
-- **💾 Export…** — copy the file to a custom location
-- **🗑** — remove the entry from the catalog (file is not deleted)
-
----
-
-### AI Providers
-
-| Provider | Default model | Requires | Sign-up |
-|---|---|---|---|
-| Anthropic (Claude) | `claude-haiku-4-5` | API key | [console.anthropic.com](https://console.anthropic.com) |
-| OpenAI (GPT) | `gpt-4o-mini` | API key | [platform.openai.com](https://platform.openai.com) |
-| Google Gemini | `gemini-1.5-flash` | API key | [aistudio.google.com](https://aistudio.google.com) |
-| Ollama (local) | `llama3.2` | Ollama server | `ollama pull llama3.2 && ollama serve` |
-
-Configure via the **⚙ Configure…** button in either AI dialog. API keys are
-saved to `~/.hxstomp/config.json` and reused across sessions.
-
-**Environment variable shortcut:**
-
-```bash
-ANTHROPIC_API_KEY=sk-ant-...  python main.py
-OPENAI_API_KEY=sk-...         python main.py
-GOOGLE_API_KEY=AIza...        python main.py
-```
-
-Full per-provider setup → **[docs/LLM_PROVIDERS.md](docs/LLM_PROVIDERS.md)**
-
----
-
 ## Reference
 
 ### Configuration File
@@ -474,20 +478,20 @@ python main.py --no-llm
 ```
 hx_stomp_midiui/
 ├── main.py              Entry point, CLI flags, MockHXStompMidi
+├── llm_generator.py     AI providers, GenerateToneDialog, GeneratePresetDialog,
+│                          ManualHLXDialog, PresetCatalogDialog
+├── hlx_builder.py       .hlx file construction, PresetCatalog,
+│                          generate_hlx_preset(), parse_hlx_response()
+├── hx_models.py         HX Stomp amp/cab/effect model catalog (84 models)
+├── soundboard_ui.py     Full UI — SoundboardApp, dialogs, LiveControlPanel
 ├── midi_interface.py    HXStompMidi — all CC constants and MIDI send methods
 ├── tone_manager.py      Tone dataclass, JSON persistence, CRUD
-├── soundboard_ui.py     Full UI — SoundboardApp, dialogs, LiveControlPanel
-├── llm_generator.py     AI providers, GenerateToneDialog, GeneratePresetDialog,
-│                          PresetCatalogDialog
-├── hx_models.py         HX Stomp amp/cab/effect model catalog (84 models)
-├── hlx_builder.py       .hlx file construction, PresetCatalog,
-│                          generate_hlx_preset()
 ├── presets.json         Default tone library (edit freely)
 ├── requirements.txt     Python dependencies
 └── docs/
-    ├── MIDI_REFERENCE.md   Complete CC map and bank/preset addressing
+    ├── HLX_GENERATION.md   .hlx preset generation guide
     ├── LLM_PROVIDERS.md    Step-by-step setup for each AI provider
-    └── HLX_GENERATION.md   .hlx preset generation guide
+    └── MIDI_REFERENCE.md   Complete CC map and bank/preset addressing
 ```
 
 ---

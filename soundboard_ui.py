@@ -571,7 +571,7 @@ class SoundboardApp(ctk.CTk):
     def __init__(self, presets_file: str = "presets.json",
                  no_llm: bool = False):
         super().__init__()
-        self.title("HX Stomp — Soundboard & HLX Generator")
+        self.title("HX Stomp — HLX Generator & Soundboard")
         self.minsize(700, 520)
 
         self._midi   = HXStompMidi()
@@ -689,9 +689,9 @@ class SoundboardApp(ctk.CTk):
         tones_menu = tk.Menu(menubar, tearoff=0,
                              bg=_BG_MENU, fg=_TEXT_BRIGHT,
                              activebackground=_ACCENT, activeforeground="#ffffff")
-        tones_menu.add_command(label="✨  Generate Tone…",   command=self._generate_tone)
         tones_menu.add_command(label="🎸  Open HLX Generator",
                                command=lambda: self._tabs.set("🎸  HLX Generator"))
+        tones_menu.add_command(label="✨  Generate Tone…",   command=self._generate_tone)
         tones_menu.add_separator()
         tones_menu.add_command(label="⊕  Add Tone",     command=self._add_tone)
         tones_menu.add_command(label="✏  Edit Selected", command=self._edit_tone)
