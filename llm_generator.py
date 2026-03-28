@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
+import subprocess
 import threading
 import tkinter as tk
 import urllib.error
@@ -1371,18 +1373,29 @@ class ManualHLXDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             btn_row, text="📋  Copy to Clipboard", width=160,
-            command=lambda: self._copy_and_advance(txt),
+            command=lambda: self._copy_prompt(txt),
         ).pack(side="left", padx=(0, 8))
+
         ctk.CTkButton(
             btn_row, text="Next: Paste Response →", width=160,
             fg_color="transparent", border_width=1, text_color=_TEXT_BRIGHT,
             command=self._go_step2,
         ).pack(side="left")
+
         ctk.CTkButton(
             btn_row, text="Cancel", width=80,
             fg_color="transparent", text_color=_TEXT_DIM,
             command=self.destroy,
         ).pack(side="right")
+
+        self._copy_status_lbl = ctk.CTkLabel(
+            body,
+            text="",
+            font=ctk.CTkFont(size=11),
+            text_color=_TEXT_DIM,
+            anchor="w",
+        )
+        self._copy_status_lbl.pack(fill="x", pady=(6, 0))
 
     def _build_step2(self, body: ctk.CTkFrame) -> None:
         ctk.CTkLabel(
@@ -1428,10 +1441,72 @@ class ManualHLXDialog(ctk.CTkToplevel):
     # Navigation
     # ------------------------------------------------------------------
 
-    def _copy_and_advance(self, txt_widget) -> None:
-        self.clipboard_clear()
-        self.clipboard_append(self._combined_prompt)
-        self._go_step2()
+    def _copy_prompt(self, txt_widget) -> None:
+        copy_text = txt_widget.get("1.0", "end-1c")
+
+        ok = False
+        method = "tk"
+        err = None
+
+        try:
+            if os.environ.get("WAYLAND_DISPLAY") and shutil.which("wl-copy"):
+                subprocess.run(
+                    ["wl-copy"],
+                    input=copy_text,
+                    text=True,
+                    check=True,
+                )
+                method = "wl-copy"
+                ok = True
+
+                if shutil.which("wl-paste"):
+                    pasted = subprocess.run(
+                        ["wl-paste", "-n"],
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                    ).stdout
+                    ok = (pasted == copy_text)
+
+            elif os.environ.get("DISPLAY") and shutil.which("xclip"):
+                subprocess.run(
+                    ["xclip", "-selection", "clipboard"],
+                    input=copy_text,
+                    text=True,
+                    check=True,
+                )
+                method = "xclip"
+                ok = True
+
+                pasted = subprocess.run(
+                    ["xclip", "-selection", "clipboard", "-o"],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                ).stdout
+                ok = (pasted == copy_text)
+
+            else:
+                self.clipboard_clear()
+                self.clipboard_append(copy_text)
+                self.update()
+                method = "tk"
+                ok = True
+
+        except Exception as exc:
+            err = exc
+            ok = False
+
+        if hasattr(self, "_copy_status_lbl") and self._copy_status_lbl.winfo_exists():
+            if ok:
+                self._copy_status_lbl.configure(
+                    text=f"Copied via {method}. ({len(copy_text):,} characters verified)"
+                )
+            else:
+                self._copy_status_lbl.configure(
+                    text=f"Copy failed via {method}: {err}",
+                    text_color=_COL_DISC,
+                )
 
     def _go_step2(self) -> None:
         self._step = 2
