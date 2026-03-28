@@ -91,12 +91,20 @@ CRITICAL RULES:
 5. Preset name: max 16 chars, title case. Snapshot names: max 12 chars.
 6. Parameter values: most knobs 0.0–1.0; Level/Gain in dB (e.g. -3.0);
    HighCut/LowCut in Hz (e.g. 8000.0); Threshold in negative dB (e.g. -65.0).
-   Sane starting ranges: Amp Drive 0.3–0.7; Reverb Mix 0.10–0.35; Delay Feedback
-   0.30–0.55, Mix 0.20–0.40; Bass/Mid/Treble 0.40–0.60 (0.5 = flat). ChVol is the
-   amp's output level for volume matching across presets (0.5–0.8 typical).
-7. Parameter names are case-sensitive abbreviations. Common amp params: Drive,
-   Bass, Mid, Treble, Presence, Master, ChVol. Effect params: Drive, Tone, Level,
-   Mix, Rate, Depth, Decay, Feedback, Time. Use only names visible in the catalog.
+   Parameter ranges: Amp Drive 0.3–0.75; ChVol 0.65–0.85 (output level, never 1.0);
+   Master 0.65–0.85; Reverb Mix 0.12–0.30, Decay 0.30–0.60; Delay Mix 0.10–0.25,
+   Feedback 0.25–0.50; Bass/Mid/Treble 0.40–0.65 (0.5 = flat).
+7. Parameter names are case-sensitive. Common amp params: Drive, Bass, Mid, Treble,
+   Presence, Master, ChVol. Effect params: Drive, Tone, Level, Mix, Rate, Depth,
+   Decay, Feedback, Time. Use only names visible in the catalog.
+
+TONE DESCRIPTOR GUIDE — translate description words into parameter choices:
+- warm / smooth:        Bass≥0.55, Mid≥0.58, Treble≤0.55, Reverb Decay 0.40–0.55
+- bright / crisp:       Treble≥0.58, Bass≤0.50, Presence≥0.52
+- singing lead / sustain: Drive 0.55–0.70, Reverb Mix≤0.25, Decay 0.40–0.55
+- tight / punchy:       Bass≤0.50, Sag 0.25–0.40, Drive 0.45–0.65
+- heavy / crushing:     Drive≥0.65, Bass 0.52–0.60, Sag 0.25–0.35
+- ambient / spacious:   Reverb Mix 0.28–0.40, Delay Mix 0.18–0.30
 
 AVAILABLE MODELS — use ONLY these model_ids:
 {catalog}
@@ -108,24 +116,35 @@ SNAPSHOTS: Define exactly 3 named snapshots matching the musical style:
 Adjust names to match the requested tone. Each name ≤ 12 chars.
 Per snapshot: state which blocks are active (true) or bypassed (false).
 The amp block should almost always stay active.
+Tip: put a booster/overdrive before the amp, disabled in Rhythm, enabled in Lead.
 
-EXAMPLE (2-block chain — your response must follow this exact structure):
+EXAMPLE (4-block chain — your response must follow this exact structure):
 {{
   "preset_name": "Plexi Crunch",
-  "description": "Classic British crunch with vintage spring reverb.",
+  "description": "Classic British crunch with optional boost for leads.",
   "blocks": [
-    {{"model_id": "HD2_AmpBritPlexiNrm", "position": 0, "enabled": true,
-      "params": {{"Drive": 0.6, "Bass": 0.5, "Treble": 0.6, "Master": 0.7}},
-      "explanation": "Marshall Plexi for responsive crunch."}},
-    {{"model_id": "HD2_Reverb63Spring", "position": 1, "enabled": true,
-      "params": {{"Decay": 0.4, "Mix": 0.2}},
-      "explanation": "Vintage spring splash."}}
+    {{"model_id": "HD2_DistScream808", "position": 0, "enabled": false,
+      "params": {{"Drive": 0.40, "Tone": 0.50, "Level": 0.65}},
+      "explanation": "TS boost — off for rhythm, on for leads."}},
+    {{"model_id": "HD2_AmpBritPlexiNrm", "position": 1, "enabled": true,
+      "params": {{"Drive": 0.60, "Bass": 0.50, "Mid": 0.60, "Treble": 0.55,
+                  "Master": 0.72, "ChVol": 0.75}},
+      "explanation": "Marshall Plexi — responsive crunch."}},
+    {{"model_id": "HD2_DelayTransistorTape", "position": 2, "enabled": false,
+      "params": {{"Time": 0.38, "Feedback": 0.30, "Mix": 0.15}},
+      "explanation": "Tape echo — off for rhythm, on for leads."}},
+    {{"model_id": "HD2_ReverbPlate", "position": 3, "enabled": true,
+      "params": {{"Decay": 0.42, "Mix": 0.18}},
+      "explanation": "Plate reverb — subtle room presence."}}
   ],
-  "signal_chain_rationale": "Simple crunch platform with vintage reverb.",
+  "signal_chain_rationale": "Booster before amp for lead push; delay before reverb.",
   "snapshots": [
-    {{"name": "Rhythm",  "description": "Full chain.",   "block_states": {{"block0": true,  "block1": true}}}},
-    {{"name": "Lead",    "description": "Reverb off.",   "block_states": {{"block0": true,  "block1": false}}}},
-    {{"name": "Dry",     "description": "Amp only.",     "block_states": {{"block0": true,  "block1": false}}}}
+    {{"name": "Rhythm", "description": "Amp + reverb.",
+      "block_states": {{"block0": false, "block1": true, "block2": false, "block3": true}}}},
+    {{"name": "Lead",   "description": "Add boost + delay.",
+      "block_states": {{"block0": true,  "block1": true, "block2": true,  "block3": true}}}},
+    {{"name": "Dry",    "description": "Amp only.",
+      "block_states": {{"block0": false, "block1": true, "block2": false, "block3": false}}}}
   ]
 }}
 
@@ -819,6 +838,32 @@ def parse_hlx_response(raw: str, description: str) -> PresetResult:
                 "limit were dropped"
             )
         gen_warnings.extend(param_warnings)
+
+        # Warn on extreme param values that commonly indicate weak-model confusion
+        for b in valid_blocks:
+            mdl    = ALL_MODELS[b["model_id"]]
+            params = b.get("params", {})
+            defs   = mdl.default_params
+            if mdl.category == "Amp":
+                ch_vol = params.get("ChVol", defs.get("ChVol", 0.75))
+                if ch_vol > 0.92:
+                    gen_warnings.append(
+                        f"{b['model_id']}: ChVol={ch_vol:.2f} is very high — "
+                        "consider 0.65–0.85 for headroom."
+                    )
+            if mdl.category == "Reverb":
+                decay = params.get("Decay", defs.get("Decay", 0.5))
+                mix   = params.get("Mix",   defs.get("Mix",   0.22))
+                if decay > 0.88:
+                    gen_warnings.append(
+                        f"{b['model_id']}: Reverb Decay={decay:.2f} is near max — "
+                        "try 0.35–0.60 for rock/lead."
+                    )
+                if mix > 0.42:
+                    gen_warnings.append(
+                        f"{b['model_id']}: Reverb Mix={mix:.2f} is heavy — "
+                        "0.15–0.30 is typical for lead/rock."
+                    )
 
         return PresetResult(
             hlx_dict               = hlx,
