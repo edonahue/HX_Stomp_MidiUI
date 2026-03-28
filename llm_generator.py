@@ -1222,7 +1222,46 @@ class HLXWorkspacePanel(ctk.CTkFrame):
         self._set_loading(True)
         threading.Thread(target=self._worker, args=(description,),
                          daemon=True).start()
+    def _on_result(self, result) -> None:
+        self._set_loading(False)
+        self._result = result
 
+        try:
+            from hlx_builder import PresetCatalog
+            saved_path = PresetCatalog().save_preset(result)
+            self._status_lbl.configure(
+                text=f"Saved .hlx to: {saved_path}",
+                text_color=_TEXT_DIM,
+            )
+            if self._on_preset_saved:
+                self._on_preset_saved()
+        except Exception as exc:
+            self._status_lbl.configure(
+                text=f"Generated preset, but failed to save: {exc}",
+                text_color=_COL_DISC,
+            )
+
+        self._build_result_panel(result)
+    def _on_result(self, result) -> None:
+        self._set_loading(False)
+        self._result = result
+
+        try:
+            from hlx_builder import PresetCatalog
+            saved_path = PresetCatalog().save_preset(result)
+            self._status_lbl.configure(
+                text=f"Saved .hlx to: {saved_path}",
+                text_color=_TEXT_DIM,
+            )
+            if self._on_preset_saved:
+                self._on_preset_saved()
+        except Exception as exc:
+            self._status_lbl.configure(
+                text=f"Generated preset, but failed to save: {exc}",
+                text_color=_COL_DISC,
+            )
+
+        self._build_result_panel(result)
 
 class ManualHLXDialog(ctk.CTkToplevel):
     """
@@ -1252,7 +1291,9 @@ class ManualHLXDialog(ctk.CTkToplevel):
         self.title("📋 Use Your Own Chatbot")
         self.resizable(False, False)
         self.minsize(660, 460)
-        self.grab_set()
+        self.transient(parent)
+        self.lift()
+        self.after(10, self._safe_grab)
 
         self._description = description
         self._on_result   = on_result_callback
@@ -1268,6 +1309,13 @@ class ManualHLXDialog(ctk.CTkToplevel):
 
         self._step = 1
         self._build_ui()
+
+    def _safe_grab(self):
+        try:
+            self.wait_visibility()
+            self.grab_set()
+        except Exception:
+            pass
 
     # ------------------------------------------------------------------
     # UI construction
@@ -1286,7 +1334,7 @@ class ManualHLXDialog(ctk.CTkToplevel):
             font=ctk.CTkFont(size=13, weight="bold"), text_color=_TEXT_BRIGHT,
         ).pack(side="left", padx=14)
 
-        body = ctk.CTkFrame(self, fg_color=_BG_BASE, corner_radius=0)
+        body = ctk.CTkFrame(self, fg_color=_BG_SURFACE, corner_radius=0)
         body.pack(fill="both", expand=True, padx=16, pady=10)
 
         if self._step == 1:
