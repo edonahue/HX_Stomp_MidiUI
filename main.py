@@ -17,6 +17,8 @@ Optional flags
                   Useful for UI development and testing.
 """
 
+from __future__ import annotations
+
 import argparse
 import sys
 

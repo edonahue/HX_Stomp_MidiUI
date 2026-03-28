@@ -47,6 +47,8 @@ IMPORTANT notes:
   - Looper CCs have defined on/off semantics (0–63 vs 64–127), not toggle.
 """
 
+from __future__ import annotations
+
 import mido
 
 
