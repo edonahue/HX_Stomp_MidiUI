@@ -1140,7 +1140,7 @@ class HLXWorkspacePanel(ctk.CTkFrame):
                     ctk.CTkLabel(
                         pill, text=desc,
                         font=ctk.CTkFont(size=9),
-                        text_color="#ffffffaa",
+                        text_color="#d9d9d9"
                         wraplength=130, justify="left",
                     ).pack(padx=10, pady=(0, 5))
 
