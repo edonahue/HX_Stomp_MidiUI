@@ -1,0 +1,117 @@
+# HX Stomp Model Aliases Reference
+# -----------------------------------------------------------------------
+# MAINTENANCE NOTE: Keep this file in sync with hx_models.py whenever
+# aliases are added, removed, or corrected. The source of truth is the
+# aliases list on each HXModel entry. This CSV is for human review only
+# and is NOT read by the application.
+# -----------------------------------------------------------------------
+# Columns:
+#   model_id        — firmware ID used in .hlx files
+#   name            — Line 6 display name
+#   category        — Amp | Distortion | Delay | Reverb | Modulation | Compressor | Gate | EQ
+#   gear_aliases    — real-world hardware names (used for LLM hint matching)
+#   artist_aliases  — artists / bands / songs / styles (used for LLM hint matching)
+# -----------------------------------------------------------------------
+
+model_id,name,category,gear_aliases,artist_aliases
+
+# --- AMPS ---
+HD2_AmpUSDoubleNrm,US Double Nrm,Amp,"Fender Twin, Twin Reverb, blackface twin",
+HD2_AmpUSSmallTweed,US Small Tweed,Amp,"Fender Deluxe, Deluxe Reverb, 5E3",
+HD2_AmpUSSuperNorm,US Super Nrm,Amp,"Fender Super Reverb, Super Reverb, Super 6G4",
+HD2_AmpUSSuperVib,US Super Vib,Amp,"Super Reverb Vibrato, Super Reverb vib, Fender vibrato channel",
+HD2_AmpTweedBluesBrt,Tweed Blues Brt,Amp,"Fender Bassman, Bassman, 5F6","SRV, Stevie Ray Vaughan, Texas blues"
+HD2_AmpMatchstickCh1,Matchstick Ch1,Amp,"Matchless DC30, DC-30, Matchless","Tom Petty, Radiohead, REM"
+HD2_AmpMandarin80,Mandarin 80,Amp,"Orange, Orange AD30, Orange OR15",
+HD2_AmpMandarinRocker,Mandarin Rocker,Amp,"Orange Rockerverb, Rockerverb, Orange RV50",
+HD2_AmpA30FawnNrm,A30 Fawn Nrm,Amp,"Vox AC30, AC30, AC-30",
+HD2_AmpEssexA15,Essex A15,Amp,"Vox AC15, AC15, AC-15",
+HD2_AmpBritPlexiNrm,Brit Plexi Nrm,Amp,"Marshall Plexi, Super Lead, 1959SLP","Hendrix, Jimi Hendrix, Led Zeppelin, Jimmy Page, Cream"
+HD2_AmpBritPlexiBrt,Brit Plexi Brt,Amp,"Marshall Plexi Bright, Plexi Bright","Slash, GNR, Guns N Roses, Appetite for Destruction, AFD, AC/DC, Angus Young, Malcolm Young, Back in Black"
+HD2_AmpBritJ45Nrm,Brit J45 Nrm,Amp,"Marshall JCM800, JCM 800, JMP, 2203, 2204","Zakk Wylde, Ozzy, classic metal, NWOBHM"
+HD2_AmpBritJ45Brt,Brit J45 Brt,Amp,"Marshall Bright, JMP Bright, Superlead Bright",
+HD2_AmpPlacaterDirty,Placater Dirty,Amp,"Friedman BE-100, BE100, Friedman",
+HD2_AmpPlacaterClean,Placater Clean,Amp,"Friedman clean, BE-100 clean, Friedman BE clean",
+HD2_AmpCaliRectifire,Cali Rectifire,Amp,"Mesa Boogie, Dual Rectifier, Mesa Recto, Rectifier","Metallica, James Hetfield, Tool, Deftones, thrash metal"
+HD2_AmpCaliIVLead,Cali IV Lead,Amp,"Mesa Mark IV, Mark IV, Mark 4, Mesa Mark 4","Santana, Carlos Santana, prog metal, Mark series"
+HD2_AmpPVPanama,PV Panama,Amp,"Peavey 5150, EVH 5150, 5150, 6505","Van Halen, EVH, Eddie Van Halen, brown sound"
+HD2_AmpLine6Litigator,Line 6 Litigator,Amp,"Two-Rock, Two Rock",
+HD2_AmpRevvGenRed,Revv Gen Red,Amp,"Revv Generator, Revv Gen, Revv 120","Periphery, Animals as Leaders, modern djent, prog metal"
+HD2_AmpRevvGenPurple,Revv Gen Purple,Amp,"Revv Purple, Revv Gen 120 Purple, Revv high gain",
+HD2_AmpLine6Badonk,Line 6 Badonk,Amp,Badonk,
+HD2_AmpDasBenzinLead,Das Benzin Lead,Amp,"Diezel Herbert, Diezel VH4, Diezel",
+HD2_AmpDasBenzinMega,Das Benzin Mega,Amp,"Diezel Mega, Diezel Herbert Mega, Diezel Ch3",
+HD2_AmpGermanXtraBlue,German Xtra Blue,Amp,"Bogner Ecstasy Blue, Ecstasy Blue, Bogner clean, Bogner Blue",
+HD2_AmpGermanXtraRed,German Xtra Red,Amp,"Bogner Ecstasy Red, Ecstasy Red, Bogner, Bogner Ecstasy",
+HD2_AmpVoltageQueen,Voltage Queen,Amp,"Victoria 35115, Victoria",
+HD2_AmpFullertonNrm,Fullerton Nrm,Amp,"Fender Princeton, Princeton Reverb, Princeton",
+HD2_AmpGrammaticoNrm,Grammatico Nrm,Amp,"Grammatico, LaGrange",
+HD2_AmpGrammaticoBrt,Grammatico Brt,Amp,"Grammatico Bright, LaGrange Bright",
+HD2_AmpGSG100,GSG-100,Amp,"Grammatico GSG, GSG 100, GSG100",
+HD2_AmpSoupPro,Soup Pro,Amp,"Supro Thunderbolt, Supro",
+HD2_AmpMailOrderTwin,Mail Order Twin,Amp,"Silvertone 1484, Silvertone",
+HD2_AmpInterstateZed,Interstate Zed,Amp,"Dr. Z Z-Wreck, Dr Z, Z-Wreck, Carol-Ann, Carol Ann",
+HD2_AmpDividedDuo,Divided Duo,Amp,"Divided by 13, DB13, JRT 9/15",
+HD2_AmpHiway100,Hiway 100,Amp,"Hiwatt, Hiwatt DR103, DR103","David Gilmour, Pink Floyd, The Who, Pete Townshend"
+HD2_AmpWhoWatt100,Who Watt 100,Amp,"Hiwatt Who Watt, Who Watt, Hiwatt 100",
+
+# --- DISTORTION / OVERDRIVE ---
+HD2_DistScream808,Scream 808,Distortion,"Tube Screamer, TS808, TS-808, TS9, Ibanez TS",
+HD2_DistMinotaur,Minotaur,Distortion,"Klon Centaur, Klon, Centaur",
+HD2_DistTeemah,Teemah,Distortion,"Timmy, Paul Cochrane Timmy",
+HD2_DistKinkyBoost,Kinky Boost,Distortion,"EP Booster, Xotic EP",
+HD2_DistVerminDist,Vermin Dist,Distortion,"ProCo RAT, Pro Co RAT, RAT pedal",
+HD2_DistArbitratorFuzz,Arbitrator Fuzz,Distortion,"Fuzz Face, Arbiter Fuzz, Dallas Fuzz",
+HD2_DistRamsHead,Rams Head,Distortion,"Big Muff, Big Muff Pi, EHX Muff",
+HD2_DistHeirApparent,Heir Apparent,Distortion,"Fulltone OCD, OCD pedal",
+HD2_DistDerangedMstr,Deranged Mstr,Distortion,"Dallas Rangemaster, Rangemaster, treble booster",
+HD2_DistPillarsOD,Pillars OD,Distortion,"Pillars OD, Line 6 OD",
+HD2_DistStunner808,Stunner 808,Distortion,"heavy Tube Screamer, TS variant, 808 boost",
+HD2_DistDeezOneVintage,Deez One Vintage,Distortion,"Deez One, Wampler Sovereign, sovereign distortion",
+HD2_DistSplitBand,Split Band,Distortion,"split band distortion, frequency split dist",
+
+# --- DELAY ---
+HD2_DelaySimpleDelay,Simple Delay,Delay,"MXR Carbon Copy, Carbon Copy",
+HD2_DelayTransistorTape,Transistor Tape,Delay,"Memory Man, EHX Memory Man, Strymon El Capistan, El Capistan",
+HD2_DelayBucketBrigade,Bucket Brigade,Delay,"BBD delay, bucket brigade analog",
+HD2_DelayElephantMan,Elephant Man,Delay,"Echoplex, Maestro Echoplex, EP3",
+HD2_DelayPingPong,Ping Pong,Delay,"ping-pong delay, stereo delay",
+HD2_DelayAdriaticDelay,Adriatic Delay,Delay,"TC delay, Nova Delay, digital delay",
+HD2_DelayCosmos,Cosmos,Delay,"Space Echo, Roland RE-201, RE-201",
+HD2_DelayReverse,Reverse Delay,Delay,"reverse delay, backwards delay",
+
+# --- REVERB ---
+HD2_ReverbPlate,Plate,Reverb,"plate reverb, EMT 140, studio plate",
+HD2_Reverb63Spring,63 Spring,Reverb,"spring reverb, surf reverb, Fender spring tank",
+HD2_ReverbRoom,Room,Reverb,"room reverb, small room",
+HD2_ReverbHall,Hall,Reverb,"hall reverb, concert hall",
+HD2_ReverbGanymede,Ganymede,Reverb,"shimmer reverb, BigSky shimmer, shimmer",
+HD2_ReverbSearchlights,Searchlights,Reverb,"modulated reverb, mod reverb",
+HD2_ReverbOcto,Octo,Reverb,"octave shimmer, shimmer octave, octo reverb",
+HD2_ReverbCave,Cave,Reverb,"cave reverb, cavernous reverb",
+HD2_ReverbPlateaux,Plateaux,Reverb,"infinite reverb, freeze reverb, pad reverb",
+
+# --- MODULATION ---
+HD2_Chorus,Chorus,Modulation,"chorus, Boss CE-2, Dimension D, chorus pedal",
+HD2_TremoloTremolo,Tremolo,Modulation,"tremolo, optical trem, Fender tremolo, trem",
+HD2_FlangerGrayFlanger,Gray Flanger,Modulation,"MXR Flanger, MXR 117, 117 Flanger",
+HD2_PhaserScriptModPhase,Script Mod Phase,Modulation,"MXR Phase 90, Phase 90, Phase 45",
+HD2_Rotary145Rotary,Rotary 145,Modulation,"Leslie 145, Leslie, rotary speaker",
+HD2_ModUniVibe,Uni Vibe,Modulation,"Uni-Vibe, Univibe, Shin-ei Univibe",
+HD2_ModCE1Chorus,CE-1 Chorus,Modulation,"Roland CE-1, CE-1, CE1",
+HD2_TremoloHarmonic,Harmonic Tremolo,Modulation,"harmonic trem, brownface tremolo, bias tremolo",
+HD2_TremoloPattern,Pattern Tremolo,Modulation,"rhythmic tremolo, pattern trem, sequenced tremolo",
+
+# --- COMPRESSOR ---
+HD2_CompressorRedSqueeze,Red Squeeze,Compressor,"Dyna Comp, MXR Dyna Comp, MXR compressor",
+HD2_CompressorDeluxeComp,Deluxe Comp,Compressor,"Diamond CPR1, Diamond compressor",
+HD2_CompressorKinkyComp,Kinky Comp,Compressor,"Xotic SP, SP Compressor",
+HD2_CompressorLAStudioComp,LA Studio Comp,Compressor,"LA-2A, LA2A, optical compressor, Teletronix",
+
+# --- GATE ---
+HD2_GateNoiseGate,Noise Gate,Gate,"noise gate, gate, noisegate",
+
+# --- EQ ---
+HD2_EQParametric,Parametric EQ,EQ,,
+HD2_EQLowCutHighCut,Low Cut High Cut,EQ,,
+HD2_EQGraphic10Band,Graphic 10 Band,EQ,,
