@@ -18,12 +18,14 @@ import subprocess
 import sys
 import time
 import tkinter as tk
+import tkinter.font as _tkfont
 from pathlib import Path
 from tkinter import colorchooser, messagebox
 from typing import Optional
 
 import customtkinter as ctk
 
+from icon_manager import get_icon, icon_btn, MD, LG
 from llm_generator import (GeneratePresetDialog, GenerateToneDialog,
                             PresetCatalogDialog, HLXWorkspacePanel,
                             PresetCatalogPanel, load_config, save_config)
@@ -36,6 +38,22 @@ from tone_manager import Tone, ToneManager
 
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
+
+
+def _resolve_ui_font() -> str:
+    """Return the best available UI font family for the current platform."""
+    try:
+        avail = set(_tkfont.families())
+    except Exception:
+        return "Helvetica"
+    for f in ("Inter", "Segoe UI", "Liberation Sans", "Helvetica Neue",
+              "Helvetica", "Arial"):
+        if f in avail:
+            return f
+    return "Helvetica"
+
+
+_UI_FONT_FAMILY = _resolve_ui_font()
 
 # UI chrome palette
 _BG_BASE      = "#141414"   # deepest: scroll areas, app root
@@ -382,7 +400,7 @@ class LiveControlPanel(ctk.CTkFrame):
         outer.pack(side="left", padx=8, pady=4)
         ctk.CTkLabel(
             outer, text=title,
-            font=ctk.CTkFont(family="Helvetica", size=9, weight="bold"),
+            font=ctk.CTkFont(family=_UI_FONT_FAMILY, size=9, weight="bold"),
             text_color=_TEXT_DIM,
         ).pack(anchor="w", pady=(2, 0))
         inner = ctk.CTkFrame(outer, fg_color="transparent")
@@ -393,10 +411,10 @@ class LiveControlPanel(ctk.CTkFrame):
         ctk.CTkFrame(parent, width=1, fg_color="#3a3a3a",
                      corner_radius=0).pack(side="left", fill="y", padx=4, pady=8)
 
-    def _lbtn(self, parent, text: str, cmd,
-              width: int = 72) -> ctk.CTkButton:
-        btn = ctk.CTkButton(
-            parent, text=text, width=width,
+    def _lbtn(self, parent, text: str, cmd, width: int = 72,
+              icon_name: str = "") -> ctk.CTkButton:
+        btn = icon_btn(
+            parent, icon_name, text, width=width,
             fg_color="transparent", hover_color=_BORDER_DIM,
             text_color=_TEXT_BRIGHT, height=26, corner_radius=5,
             command=cmd,
@@ -411,17 +429,17 @@ class LiveControlPanel(ctk.CTkFrame):
     def _build(self) -> None:
         # SNAPSHOTS
         snap = self._section(self, "SNAPSHOTS")
-        self._lbtn(snap, "◀  Prev", self._prev_snapshot, width=80)
-        self._lbtn(snap, "Next  ▶", self._next_snapshot, width=80)
+        self._lbtn(snap, "Prev", self._prev_snapshot, width=80, icon_name="caret-left")
+        self._lbtn(snap, "Next", self._next_snapshot, width=80, icon_name="caret-right")
 
         self._vdivider(self)
 
         # TAP TEMPO
         tap = self._section(self, "TAP TEMPO")
-        self._lbtn(tap, "⏱  Tap", self._tap, width=80)
+        self._lbtn(tap, "Tap", self._tap, width=80, icon_name="timer")
         self._bpm_lbl = ctk.CTkLabel(
             tap, text="— BPM", width=72,
-            font=ctk.CTkFont(family="Helvetica", size=13, weight="bold"),
+            font=ctk.CTkFont(family=_UI_FONT_FAMILY, size=13, weight="bold"),
             text_color=_TEXT_BRIGHT,
         )
         self._bpm_lbl.pack(side="left", padx=4)
@@ -434,17 +452,17 @@ class LiveControlPanel(ctk.CTkFrame):
 
         row1 = ctk.CTkFrame(loop, fg_color="transparent")
         row1.pack(fill="x")
-        self._rec_btn  = self._lbtn(row1, "⏺  Rec",   self._looper_record)
-        self._play_btn = self._lbtn(row1, "▶  Play",   self._looper_play)
-        self._stop_btn = self._lbtn(row1, "⏹  Stop",   self._looper_stop)
-        self._undo_btn = self._lbtn(row1, "↩  Undo",   self._looper_undo)
+        self._rec_btn  = self._lbtn(row1, "Rec",      self._looper_record,  icon_name="record")
+        self._play_btn = self._lbtn(row1, "Play",     self._looper_play,    icon_name="play")
+        self._stop_btn = self._lbtn(row1, "Stop",     self._looper_stop,    icon_name="stop")
+        self._undo_btn = self._lbtn(row1, "Undo",     self._looper_undo,    icon_name="arrow-counter-clockwise")
 
         row2 = ctk.CTkFrame(loop, fg_color="transparent")
         row2.pack(fill="x")
-        self._od_btn   = self._lbtn(row2, "⟳  Overdub",   self._looper_overdub,  width=82)
-        self._once_btn = self._lbtn(row2, "⊙  Play Once",  self._looper_once,     width=82)
-        self._rev_btn  = self._lbtn(row2, "↔  Reverse",   self._looper_reverse,  width=82)
-        self._half_btn = self._lbtn(row2, "½  Half Spd",  self._looper_half,     width=82)
+        self._od_btn   = self._lbtn(row2, "Overdub",  self._looper_overdub,  width=82, icon_name="arrows-clockwise")
+        self._once_btn = self._lbtn(row2, "Play Once", self._looper_once,    width=82, icon_name="play")
+        self._rev_btn  = self._lbtn(row2, "Reverse",  self._looper_reverse,  width=82, icon_name="arrows-left-right")
+        self._half_btn = self._lbtn(row2, "Half Spd", self._looper_half,     width=82, icon_name="gauge")
 
     # ------------------------------------------------------------------
     # Connection guard
@@ -607,6 +625,7 @@ class SoundboardApp(ctk.CTk):
         self._live_visible  = False
         self._live_view_var = tk.BooleanVar(value=False)
 
+        self._set_window_icon()
         self._build_ui()
         cfg = load_config()
         if cfg.get("live_panel_visible", False):
@@ -620,11 +639,29 @@ class SoundboardApp(ctk.CTk):
     # UI construction
     # ------------------------------------------------------------------
 
+    def _set_window_icon(self) -> None:
+        icon_path = Path(__file__).parent / "assets" / "icons" / "app-icon.png"
+        if icon_path.exists():
+            try:
+                from PIL import Image as _PilImg, ImageTk as _PilTk
+                img = _PilTk.PhotoImage(_PilImg.open(icon_path))
+                self.wm_iconphoto(True, img)
+                self._app_icon_ref = img  # prevent GC
+            except Exception:
+                pass
+
     def _build_ui(self) -> None:
         self._build_menu()
 
-        self._tabs = ctk.CTkTabview(self, corner_radius=0,
-                                     fg_color="transparent")
+        self._tabs = ctk.CTkTabview(
+            self, corner_radius=0, fg_color="transparent",
+            segmented_button_fg_color=_BG_SURFACE,
+            segmented_button_selected_color=_ACCENT,
+            segmented_button_selected_hover_color="#3a7bc8",
+            segmented_button_unselected_color=_BG_SURFACE,
+            segmented_button_unselected_hover_color=_BG_INPUT,
+            text_color=_TEXT_BRIGHT,
+        )
         self._tabs.pack(fill="both", expand=True, padx=0, pady=0)
 
         self._hlx_tab   = self._tabs.add("🎸  HLX Generator")
@@ -763,38 +800,32 @@ class SoundboardApp(ctk.CTk):
             corner_radius = 6,
         )
 
-        ctk.CTkButton(toolbar, text="⊕  Add",    width=90,
-                      command=self._add_tone,    **btn_opts).pack(
-            side="left", padx=(8, 2), pady=6)
-        ctk.CTkButton(toolbar, text="✏  Edit",   width=90,
-                      command=self._edit_tone,   **btn_opts).pack(
-            side="left", padx=2,      pady=6)
-        ctk.CTkButton(toolbar, text="🗑  Remove", width=90,
-                      command=self._remove_tone, **btn_opts).pack(
-            side="left", padx=2,      pady=6)
-        ctk.CTkButton(toolbar, text="↺  Reload", width=90,
-                      command=self._reload,      **btn_opts).pack(
-            side="left", padx=2,      pady=6)
+        icon_btn(toolbar, "plus",   "Add",    width=90, command=self._add_tone,    **btn_opts).pack(side="left", padx=(8, 2), pady=6)
+        icon_btn(toolbar, "pencil-simple", "Edit",   width=90, command=self._edit_tone,   **btn_opts).pack(side="left", padx=2, pady=6)
+        icon_btn(toolbar, "trash",  "Remove", width=90, command=self._remove_tone, **btn_opts).pack(side="left", padx=2, pady=6)
+        icon_btn(toolbar, "arrows-clockwise", "Reload", width=90, command=self._reload, **btn_opts).pack(side="left", padx=2, pady=6)
 
         # Thin separator
         ctk.CTkFrame(toolbar, width=1, fg_color="#3a3a3a",
                      corner_radius=0).pack(side="left", fill="y", padx=8, pady=8)
 
-        ctk.CTkButton(toolbar, text="✨  Label Tone", width=105,
-                      command=self._generate_tone, **btn_opts).pack(
-            side="left", padx=2, pady=6)
+        icon_btn(toolbar, "sparkle", "Label Tone", width=105,
+                 command=self._generate_tone, **btn_opts).pack(side="left", padx=2, pady=6)
 
         # Live panel toggle — right-aligned
-        self._live_btn = ctk.CTkButton(
-            toolbar, text="⚡  Live", width=90,
+        self._live_btn = icon_btn(
+            toolbar, "lightning", "Live", width=90,
             command=self._toggle_live_panel, **btn_opts)
         self._live_btn.pack(side="right", padx=(2, 8), pady=6)
 
     # ---- Tone grid ---------------------------------------------------
 
     def _build_grid(self) -> None:
-        self._scroll = ctk.CTkScrollableFrame(self._board_tab, fg_color=_BG_BASE,
-                                              corner_radius=0)
+        self._scroll = ctk.CTkScrollableFrame(
+            self._board_tab, fg_color=_BG_BASE, corner_radius=0,
+            scrollbar_button_color="#444444",
+            scrollbar_button_hover_color="#666666",
+        )
         self._scroll.pack(fill="both", expand=True)
         # Responsive column recalculation
         self._scroll.bind("<Configure>", self._on_grid_resize)
@@ -922,7 +953,7 @@ class SoundboardApp(ctk.CTk):
         ctk.CTkLabel(
             frame,
             text=cat.upper(),
-            font=ctk.CTkFont(family="Helvetica", size=10, weight="bold"),
+            font=ctk.CTkFont(family=_UI_FONT_FAMILY, size=10, weight="bold"),
             text_color=_TEXT_DIM,
             anchor="w",
         ).pack(side="left", anchor="w")
@@ -958,7 +989,7 @@ class SoundboardApp(ctk.CTk):
         name_lbl = ctk.CTkLabel(
             card,
             text=tone.name,
-            font=ctk.CTkFont(family="Helvetica", size=13, weight="bold"),
+            font=ctk.CTkFont(family=_UI_FONT_FAMILY, size=13, weight="bold"),
             text_color=fg,
             wraplength=_CARD_W - 16,
             anchor="center",
@@ -969,7 +1000,7 @@ class SoundboardApp(ctk.CTk):
         sub_lbl = ctk.CTkLabel(
             card,
             text=f"Preset {tone.preset}  ·  Snap {tone.snapshot + 1}",
-            font=ctk.CTkFont(family="Helvetica", size=9),
+            font=ctk.CTkFont(family=_UI_FONT_FAMILY, size=9),
             text_color=sub_fg,
             anchor="center",
         )

@@ -26,7 +26,9 @@ from tkinter import filedialog
 from typing import Callable
 
 import customtkinter as ctk
+import tkinter.font as _tkfont
 
+from icon_manager import get_icon, icon_btn, MD, LG
 from tone_manager import Tone
 
 # ---------------------------------------------------------------------------
@@ -64,6 +66,20 @@ _BORDER_DIM    = "#333333"
 _BG_TEXT_INPUT = "#2b2b2b"
 _TEXT_WARN     = "#e8a838"
 _BG_WARN       = "#2a2000"
+
+def _resolve_ui_font() -> str:
+    try:
+        avail = set(_tkfont.families())
+    except Exception:
+        return "Helvetica"
+    for f in ("Inter", "Segoe UI", "Liberation Sans", "Helvetica Neue",
+              "Helvetica", "Arial"):
+        if f in avail:
+            return f
+    return "Helvetica"
+
+
+_UI_FONT_FAMILY = _resolve_ui_font()
 
 _PROVIDER_COLORS: dict[str, str] = {
     "anthropic": "#d97706",
@@ -448,10 +464,10 @@ class ProviderConfigDialog(ctk.CTkToplevel):
 
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
         btn_frame.grid(row=row, column=0, columnspan=2, pady=12)
-        ctk.CTkButton(btn_frame, text="Save",
-                      command=self._save).pack(side="left", padx=6)
-        ctk.CTkButton(
-            btn_frame, text="Cancel",
+        icon_btn(btn_frame, "floppy-disk", "Save",
+                 command=self._save).pack(side="left", padx=6)
+        icon_btn(
+            btn_frame, "x", "Cancel",
             fg_color="transparent", border_width=1, text_color=_TEXT_BRIGHT,
             command=self.destroy,
         ).pack(side="left", padx=6)
@@ -544,8 +560,8 @@ class GenerateToneDialog(ctk.CTkToplevel):
             command=self._on_provider_changed,
         ).pack(side="left", padx=(0, 8))
 
-        ctk.CTkButton(
-            prov_frame, text="⚙  Configure…", width=115,
+        icon_btn(
+            prov_frame, "gear", "Configure…", width=115,
             fg_color="transparent", border_width=1, text_color=_TEXT_BRIGHT,
             command=self._configure_provider,
         ).pack(side="left")
@@ -569,19 +585,15 @@ class GenerateToneDialog(ctk.CTkToplevel):
             fill="x", padx=14, pady=(8, 2))
 
         # Multi-line text area
-        txt_frame = ctk.CTkFrame(self, fg_color=_BG_TEXT_INPUT, corner_radius=6)
-        txt_frame.pack(fill="x", padx=14, pady=(0, 4))
-        self._text = tk.Text(
-            txt_frame,
-            height=4, width=46,
+        self._text = ctk.CTkTextbox(
+            self,
+            height=80, width=460,
             wrap="word",
-            bg=_BG_TEXT_INPUT, fg=_TEXT_BRIGHT,
-            insertbackground=_TEXT_BRIGHT,
-            relief="flat", bd=0,
-            font=("Helvetica", 12),
-            padx=8, pady=8,
+            corner_radius=6,
+            border_color=_BORDER_DIM,
+            font=ctk.CTkFont(family=_UI_FONT_FAMILY, size=12),
         )
-        self._text.pack(fill="x", padx=2, pady=2)
+        self._text.pack(fill="x", padx=14, pady=(0, 4))
         self._text.focus_set()
 
         # Hint — explains what the LLM generates vs what the user must supply
@@ -612,12 +624,12 @@ class GenerateToneDialog(ctk.CTkToplevel):
 
         # Initialise both dynamic labels
         self._refresh_provider_ui()
-        self._gen_btn = ctk.CTkButton(
-            btn_frame, text="✨  Generate", width=120,
+        self._gen_btn = icon_btn(
+            btn_frame, "sparkle", "Generate", width=120,
             command=self._start_generate)
         self._gen_btn.pack(side="left", padx=6)
-        ctk.CTkButton(
-            btn_frame, text="Cancel", width=90,
+        icon_btn(
+            btn_frame, "x", "Cancel", width=90,
             fg_color="transparent", border_width=1, text_color=_TEXT_BRIGHT,
             command=self.destroy,
         ).pack(side="left", padx=6)
@@ -674,7 +686,7 @@ class GenerateToneDialog(ctk.CTkToplevel):
         else:
             self._progress.stop()
             self._progress.pack_forget()
-            self._gen_btn.configure(state="normal", text="✨  Generate")
+            self._gen_btn.configure(state="normal", text="  Generate")
 
     def _start_generate(self) -> None:
         description = self._text.get("1.0", "end").strip()
@@ -831,8 +843,8 @@ class HLXWorkspacePanel(ctk.CTkFrame):
             command=self._on_provider_changed,
         ).pack(side="left", padx=(0, 8))
 
-        ctk.CTkButton(
-            prov_frame, text="⚙  Configure…", width=115,
+        icon_btn(
+            prov_frame, "gear", "Configure…", width=115,
             fg_color="transparent", border_width=1, text_color=_TEXT_BRIGHT,
             command=self._configure_provider,
         ).pack(side="left")
@@ -853,19 +865,15 @@ class HLXWorkspacePanel(ctk.CTkFrame):
         ctk.CTkLabel(self, text="Describe the tone or artist to emulate:",
                      anchor="w").pack(fill="x", padx=14, pady=(8, 2))
 
-        txt_frame = ctk.CTkFrame(self, fg_color=_BG_TEXT_INPUT, corner_radius=6)
-        txt_frame.pack(fill="x", padx=14, pady=(0, 4))
-        self._text = tk.Text(
-            txt_frame,
-            height=4, width=52,
+        self._text = ctk.CTkTextbox(
+            self,
+            height=80, width=520,
             wrap="word",
-            bg=_BG_TEXT_INPUT, fg=_TEXT_BRIGHT,
-            insertbackground=_TEXT_BRIGHT,
-            relief="flat", bd=0,
-            font=("Helvetica", 12),
-            padx=8, pady=8,
+            corner_radius=6,
+            border_color=_BORDER_DIM,
+            font=ctk.CTkFont(family=_UI_FONT_FAMILY, size=12),
         )
-        self._text.pack(fill="x", padx=2, pady=2)
+        self._text.pack(fill="x", padx=14, pady=(0, 4))
         self._text.focus_set()
 
         # Hint
@@ -894,13 +902,13 @@ class HLXWorkspacePanel(ctk.CTkFrame):
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
         btn_frame.pack(pady=(4, 8))
 
-        self._gen_btn = ctk.CTkButton(
-            btn_frame, text="📦  Generate Preset", width=150,
+        self._gen_btn = icon_btn(
+            btn_frame, "robot", "Generate Preset", width=150,
             command=self._start_generate)
         self._gen_btn.pack(side="left", padx=6)
 
-        self._manual_btn = ctk.CTkButton(
-            btn_frame, text="📋  Manual Mode", width=130,
+        self._manual_btn = icon_btn(
+            btn_frame, "clipboard-text", "Manual Mode", width=130,
             fg_color="transparent", border_width=1, text_color=_TEXT_BRIGHT,
             command=self._open_manual_dialog)
         self._manual_btn.pack(side="left", padx=6)
@@ -969,7 +977,7 @@ class HLXWorkspacePanel(ctk.CTkFrame):
         else:
             self._progress.stop()
             self._progress.pack_forget()
-            self._gen_btn.configure(state="normal", text="📦  Generate Preset")
+            self._gen_btn.configure(state="normal", text="  Generate Preset")
 
     # ------------------------------------------------------------------
     # Generation
@@ -1207,19 +1215,19 @@ class HLXWorkspacePanel(ctk.CTkFrame):
         act_frame = ctk.CTkFrame(rf, fg_color="transparent")
         act_frame.pack(pady=8)
 
-        ctk.CTkButton(
-            act_frame, text="💾  Save .hlx…", width=130,
+        icon_btn(
+            act_frame, "floppy-disk", "Save .hlx…", width=130,
             command=self._save_hlx,
         ).pack(side="left", padx=6)
 
-        ctk.CTkButton(
-            act_frame, text="🔄  Regenerate", width=130,
+        icon_btn(
+            act_frame, "arrows-clockwise", "Regenerate", width=130,
             fg_color="transparent", border_width=1, text_color=_TEXT_BRIGHT,
             command=self._regenerate,
         ).pack(side="left", padx=6)
 
-        ctk.CTkButton(
-            act_frame, text="✕  Clear", width=80,
+        icon_btn(
+            act_frame, "x", "Clear", width=80,
             fg_color="transparent", border_width=1, text_color=_TEXT_DIM,
             command=self._clear_result,
         ).pack(side="left", padx=6)
@@ -1406,19 +1414,19 @@ class ManualHLXDialog(ctk.CTkToplevel):
         btn_row = ctk.CTkFrame(body, fg_color="transparent")
         btn_row.pack(fill="x", pady=(10, 0))
 
-        ctk.CTkButton(
-            btn_row, text="📋  Copy to Clipboard", width=160,
+        icon_btn(
+            btn_row, "copy", "Copy to Clipboard", width=160,
             command=lambda: self._copy_prompt(txt),
         ).pack(side="left", padx=(0, 8))
 
-        ctk.CTkButton(
-            btn_row, text="Next: Paste Response →", width=160,
+        icon_btn(
+            btn_row, "caret-right", "Next: Paste Response", width=160,
             fg_color="transparent", border_width=1, text_color=_TEXT_BRIGHT,
             command=self._go_step2,
         ).pack(side="left")
 
-        ctk.CTkButton(
-            btn_row, text="Cancel", width=80,
+        icon_btn(
+            btn_row, "x", "Cancel", width=80,
             fg_color="transparent", text_color=_TEXT_DIM,
             command=self.destroy,
         ).pack(side="right")
@@ -1457,17 +1465,17 @@ class ManualHLXDialog(ctk.CTkToplevel):
         btn_row = ctk.CTkFrame(body, fg_color="transparent")
         btn_row.pack(fill="x", pady=(10, 0))
 
-        ctk.CTkButton(
-            btn_row, text="← Back", width=80,
+        icon_btn(
+            btn_row, "caret-left", "Back", width=80,
             fg_color="transparent", border_width=1, text_color=_TEXT_BRIGHT,
             command=self._go_step1,
         ).pack(side="left", padx=(0, 8))
-        ctk.CTkButton(
-            btn_row, text="✓  Import & Validate", width=160,
+        icon_btn(
+            btn_row, "check-circle", "Import & Validate", width=160,
             command=self._import,
         ).pack(side="left")
-        ctk.CTkButton(
-            btn_row, text="Cancel", width=80,
+        icon_btn(
+            btn_row, "x", "Cancel", width=80,
             fg_color="transparent", text_color=_TEXT_DIM,
             command=self.destroy,
         ).pack(side="right")
@@ -1601,15 +1609,18 @@ class PresetCatalogPanel(ctk.CTkFrame):
             text_color=_TEXT_DIM, anchor="w")
         self._footer_lbl.pack(side="left", padx=(0, 8))
 
-        ctk.CTkButton(
-            hdr, text="↺  Refresh", width=90,
+        icon_btn(
+            hdr, "arrows-clockwise", "Refresh", width=90,
             fg_color="transparent", border_width=1, text_color=_TEXT_BRIGHT,
             command=self._refresh,
         ).pack(side="right", padx=8, pady=8)
 
         # ── Scrollable list ───────────────────────────────────────────
         self._scroll = ctk.CTkScrollableFrame(
-            self, fg_color="#1c1c1c", corner_radius=0)
+            self, fg_color="#1c1c1c", corner_radius=0,
+            scrollbar_button_color="#444444",
+            scrollbar_button_hover_color="#666666",
+        )
         self._scroll.pack(fill="both", expand=True)
 
         self._render_list()
@@ -1690,24 +1701,24 @@ class PresetCatalogPanel(ctk.CTkFrame):
                 font=ctk.CTkFont(size=10), text_color=_TEXT_DIM,
             ).pack(side="left", padx=(8, 0))
 
-        ctk.CTkButton(
-            top, text="🗑", width=30, height=24,
+        icon_btn(
+            top, "trash", "", size=(14, 14), width=30, height=24,
             fg_color="transparent", hover_color="#3a1515",
-            text_color=_COL_DISC, font=ctk.CTkFont(size=12),
+            text_color=_COL_DISC,
             command=lambda fn=filename: self._remove(fn),
         ).pack(side="right", padx=(4, 0))
 
-        ctk.CTkButton(
-            top, text="💾  Export…", width=90, height=24,
+        icon_btn(
+            top, "floppy-disk", "Export…", size=(14, 14), width=90, height=24,
             fg_color="transparent", border_width=1,
-            text_color=_TEXT_BRIGHT, font=ctk.CTkFont(size=11),
+            text_color=_TEXT_BRIGHT,
             command=lambda e=entry: self._export(e),
         ).pack(side="right", padx=(4, 0))
 
-        ctk.CTkButton(
-            top, text="📂  Show", width=72, height=24,
+        icon_btn(
+            top, "folder-open", "Show", size=(14, 14), width=72, height=24,
             fg_color="transparent", border_width=1,
-            text_color=_TEXT_BRIGHT, font=ctk.CTkFont(size=11),
+            text_color=_TEXT_BRIGHT,
             command=lambda fn=filename: self._show_in_folder(fn),
         ).pack(side="right", padx=(4, 0))
 

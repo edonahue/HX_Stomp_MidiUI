@@ -54,7 +54,7 @@ def _make_ui_module(name: str) -> types.ModuleType:
 
 
 for _mod_name in ("tkinter", "tkinter.messagebox", "tkinter.filedialog",
-                  "customtkinter", "_tkinter"):
+                  "tkinter.font", "customtkinter", "_tkinter"):
     if _mod_name not in sys.modules:
         sys.modules[_mod_name] = _make_ui_module(_mod_name)
 
