@@ -129,7 +129,10 @@ EXAMPLE (2-block chain — your response must follow this exact structure):
   ]
 }}
 
-Now generate a preset for the tone described by the user. Your response must be a single JSON object in the same structure as the example above."""
+Now generate a preset for the tone described by the user.
+
+IMPORTANT: Your entire response must be a single JSON object — start with {{ and end with }}.
+Do not include any explanation, prose, or markdown fences before or after the JSON."""
 
 
 # ---------------------------------------------------------------------------
@@ -671,6 +674,171 @@ def _fuzzy_recover_model_id(unknown_id: str) -> tuple[HXModel | None, str]:
     return None, "no confident match"
 
 
+def build_hlx_prompt(description: str) -> tuple[str, str]:
+    """
+    Return (system_prompt, user_prompt) for the HLX preset generation task.
+
+    The caller can pass these to any LLM provider or display them for manual
+    use (copy/paste into an external chatbot).
+    """
+    system_prompt = _build_system_prompt()
+    hints = _match_gear_hints(description)
+    user_msg = description
+    if hints:
+        user_msg = (
+            description
+            + "\n\nGear Match Hints — use these model_ids for the gear named above:\n"
+            + "\n".join(f"- {h}" for h in hints)
+        )
+    return system_prompt, user_msg
+
+
+def parse_hlx_response(raw: str, description: str) -> PresetResult:
+    """
+    Parse a raw LLM response string through the full HLX validation pipeline.
+
+    Accepts JSON that may be wrapped in markdown fences or surrounded by prose.
+    Returns a PresetResult on success.
+    Raises LLMGenerationError on unrecoverable parse or schema failures.
+    """
+    from llm_generator import LLMGenerationError  # lazy import (avoids tkinter at module load)
+
+    if not raw or not raw.strip():
+        raise LLMGenerationError("Empty response — nothing to parse.")
+
+    try:
+        data = json.loads(_strip_fences(raw))
+
+        preset_name = str(data.get("preset_name", "New Preset"))[:16]
+        tone_desc   = str(data.get("description", ""))
+        rationale   = str(data.get("signal_chain_rationale", ""))
+        raw_blocks  = data.get("blocks", [])
+
+        if not isinstance(raw_blocks, list) or not raw_blocks:
+            raise ValueError("No blocks in response")
+
+        # Validate model IDs; try fuzzy recovery before discarding unknowns
+        valid_blocks:  list[dict] = []
+        skipped_ids:   list[str]  = []
+        recovered_ids: list[str]  = []
+        for blk in raw_blocks:
+            mid = str(blk.get("model_id", ""))
+            if mid in ALL_MODELS:
+                valid_blocks.append(blk)
+            else:
+                recovered, note = _fuzzy_recover_model_id(mid)
+                if recovered:
+                    blk = {**blk, "model_id": recovered.model_id}
+                    valid_blocks.append(blk)
+                    recovered_ids.append(
+                        f"'{mid}' \u2192 {recovered.model_id} ({note})"
+                    )
+                else:
+                    skipped_ids.append(mid or "<empty>")
+
+        # Check signal chain category order (warn only, do not reorder)
+        order_warnings: list[str] = []
+        prev_rank, prev_label = -1, ""
+        for blk in valid_blocks:
+            mdl  = ALL_MODELS[blk["model_id"]]
+            rank = _CHAIN_RANK.get(mdl.category, 99)
+            if rank < prev_rank:
+                order_warnings.append(
+                    f"Signal order: '{mdl.name} ({mdl.category})' at pos "
+                    f"{blk.get('position', '?')} follows '{prev_label}' — "
+                    "chain may not sound as intended"
+                )
+            if rank != 7:  # don't track Cab (auto-paired, not user-positioned)
+                prev_rank  = rank
+                prev_label = f"{mdl.name} ({mdl.category})"
+
+        # Track blocks truncated beyond the 6-block limit
+        truncated = max(0, len(valid_blocks) - _MAX_BLOCKS)
+        valid_blocks = valid_blocks[:_MAX_BLOCKS]
+
+        # Require at least one amp block
+        amp_blocks = [b for b in valid_blocks
+                      if ALL_MODELS[b["model_id"]].category == "Amp"]
+        if not amp_blocks:
+            raise ValueError("No valid amp block in response")
+
+        # Build flat block metadata list for UI display
+        block_meta: list[dict] = []
+        for blk in valid_blocks:
+            mdl = ALL_MODELS[blk["model_id"]]
+            block_meta.append({
+                "model_id":    mdl.model_id,
+                "name":        mdl.name,
+                "category":    mdl.category,
+                "explanation": str(blk.get("explanation", "")),
+                "enabled":     bool(blk.get("enabled", True)),
+            })
+
+        # Parse snapshot specs from LLM response
+        raw_snapshots = data.get("snapshots", [])
+        snapshots_spec: list[dict] = []
+        if isinstance(raw_snapshots, list):
+            for snap in raw_snapshots[:3]:
+                if isinstance(snap, dict):
+                    snapshots_spec.append({
+                        "name":        str(snap.get("name", ""))[:12],
+                        "description": str(snap.get("description", "")),
+                        "block_states": snap.get("block_states", {}),
+                    })
+
+        # Build the .hlx structure
+        blocks_spec = [
+            {
+                "model_id": b["model_id"],
+                "position": int(b.get("position", i)),
+                "enabled":  bool(b.get("enabled", True)),
+                "params":   b.get("params", {}),
+            }
+            for i, b in enumerate(valid_blocks)
+        ]
+        hlx, param_warnings = build_hlx(
+            preset_name, blocks_spec,
+            snapshots_spec if snapshots_spec else None,
+        )
+
+        # Accumulate all generation warnings
+        gen_warnings: list[str] = []
+        gen_warnings.extend(order_warnings)
+        for r in recovered_ids:
+            gen_warnings.append(f"Auto-recovered: {r}")
+        if skipped_ids:
+            ids_str  = ", ".join(skipped_ids[:3])
+            ellipsis = "…" if len(skipped_ids) > 3 else ""
+            gen_warnings.append(
+                f"{len(skipped_ids)} model(s) not in catalog, skipped: "
+                f"{ids_str}{ellipsis}"
+            )
+        if truncated:
+            gen_warnings.append(
+                f"{truncated} block(s) beyond the {_MAX_BLOCKS}-block "
+                "limit were dropped"
+            )
+        gen_warnings.extend(param_warnings)
+
+        return PresetResult(
+            hlx_dict               = hlx,
+            preset_name            = preset_name,
+            description            = tone_desc,
+            blocks                 = block_meta,
+            signal_chain_rationale = rationale,
+            prompt                 = description,
+            snapshots              = snapshots_spec,
+            warnings               = gen_warnings,
+        )
+
+    except LLMGenerationError:
+        raise
+    except (KeyError, ValueError, json.JSONDecodeError) as exc:
+        raise LLMGenerationError(
+            f"Could not parse .hlx generation response: {exc}"
+        ) from exc
+
+
 def generate_hlx_preset(description: str, provider) -> PresetResult:
     """
     Ask the LLM to design an HX Stomp preset for the given description.
@@ -683,162 +851,22 @@ def generate_hlx_preset(description: str, provider) -> PresetResult:
     """
     from llm_generator import LLMGenerationError  # lazy import (avoids tkinter at module load)
 
-    system_prompt = _build_system_prompt()
+    system_prompt, base_msg = build_hlx_prompt(description)
     last_exc: Exception | None = None
 
-    # Pre-match real-world gear names to model_ids before the first API call
-    hints = _match_gear_hints(description)
-    base_msg = description
-    if hints:
-        base_msg = (
-            description
-            + "\n\nGear Match Hints — use these model_ids for the gear named above:\n"
-            + "\n".join(f"- {h}" for h in hints)
-        )
-
     for attempt in range(2):
+        user_msg = base_msg
+        if attempt > 0 and last_exc is not None:
+            user_msg = (
+                f"{base_msg}\n\n"
+                f"Note: previous attempt failed ({last_exc}). "
+                "Return ONLY a JSON object — no markdown, no prose. "
+                "Use ONLY model_ids from the catalog."
+            )
+        raw = provider.complete(system_prompt, user_msg, max_tokens=_HLX_MAX_TOKENS)
         try:
-            # On retry, prepend a context hint so weaker models know what failed
-            user_msg = base_msg
-            if attempt > 0 and last_exc is not None:
-                user_msg = (
-                    f"{base_msg}\n\n"
-                    f"Note: previous attempt failed ({last_exc}). "
-                    "Return ONLY a JSON object — no markdown, no prose. "
-                    "Use ONLY model_ids from the catalog."
-                )
-
-            raw  = provider.complete(system_prompt, user_msg,
-                                     max_tokens=_HLX_MAX_TOKENS)
-            data = json.loads(_strip_fences(raw))
-
-            preset_name = str(data.get("preset_name", "New Preset"))[:16]
-            tone_desc   = str(data.get("description", ""))
-            rationale   = str(data.get("signal_chain_rationale", ""))
-            raw_blocks  = data.get("blocks", [])
-
-            if not isinstance(raw_blocks, list) or not raw_blocks:
-                raise ValueError("No blocks in response")
-
-            total_raw = len(raw_blocks)
-
-            # Validate model IDs; try fuzzy recovery before discarding unknowns
-            valid_blocks:  list[dict] = []
-            skipped_ids:   list[str]  = []
-            recovered_ids: list[str]  = []
-            for blk in raw_blocks:
-                mid = str(blk.get("model_id", ""))
-                if mid in ALL_MODELS:
-                    valid_blocks.append(blk)
-                else:
-                    recovered, note = _fuzzy_recover_model_id(mid)
-                    if recovered:
-                        blk = {**blk, "model_id": recovered.model_id}
-                        valid_blocks.append(blk)
-                        recovered_ids.append(
-                            f"'{mid}' \u2192 {recovered.model_id} ({note})"
-                        )
-                    else:
-                        skipped_ids.append(mid or "<empty>")
-
-            # Check signal chain category order (warn only, do not reorder)
-            order_warnings: list[str] = []
-            prev_rank, prev_label = -1, ""
-            for blk in valid_blocks:
-                mdl  = ALL_MODELS[blk["model_id"]]
-                rank = _CHAIN_RANK.get(mdl.category, 99)
-                if rank < prev_rank:
-                    order_warnings.append(
-                        f"Signal order: '{mdl.name} ({mdl.category})' at pos "
-                        f"{blk.get('position', '?')} follows '{prev_label}' — "
-                        "chain may not sound as intended"
-                    )
-                if rank != 7:  # don't track Cab (auto-paired, not user-positioned)
-                    prev_rank  = rank
-                    prev_label = f"{mdl.name} ({mdl.category})"
-
-            # Track blocks truncated beyond the 6-block limit
-            truncated = max(0, len(valid_blocks) - _MAX_BLOCKS)
-            valid_blocks = valid_blocks[:_MAX_BLOCKS]
-
-            # Require at least one amp block
-            amp_blocks = [b for b in valid_blocks
-                          if ALL_MODELS[b["model_id"]].category == "Amp"]
-            if not amp_blocks:
-                raise ValueError("No valid amp block in response")
-
-            # Build flat block metadata list for UI display
-            block_meta: list[dict] = []
-            for blk in valid_blocks:
-                mdl = ALL_MODELS[blk["model_id"]]
-                block_meta.append({
-                    "model_id":    mdl.model_id,
-                    "name":        mdl.name,
-                    "category":    mdl.category,
-                    "explanation": str(blk.get("explanation", "")),
-                    "enabled":     bool(blk.get("enabled", True)),
-                })
-
-            # Parse snapshot specs from LLM response
-            raw_snapshots = data.get("snapshots", [])
-            snapshots_spec: list[dict] = []
-            if isinstance(raw_snapshots, list):
-                for snap in raw_snapshots[:3]:
-                    if isinstance(snap, dict):
-                        snapshots_spec.append({
-                            "name":        str(snap.get("name", ""))[:12],
-                            "description": str(snap.get("description", "")),
-                            "block_states": snap.get("block_states", {}),
-                        })
-
-            # Build the .hlx structure
-            blocks_spec = [
-                {
-                    "model_id": b["model_id"],
-                    "position": int(b.get("position", i)),
-                    "enabled":  bool(b.get("enabled", True)),
-                    "params":   b.get("params", {}),
-                }
-                for i, b in enumerate(valid_blocks)
-            ]
-            hlx, param_warnings = build_hlx(
-                preset_name, blocks_spec,
-                snapshots_spec if snapshots_spec else None,
-            )
-
-            # Accumulate all generation warnings
-            gen_warnings: list[str] = []
-            gen_warnings.extend(order_warnings)
-            for r in recovered_ids:
-                gen_warnings.append(f"Auto-recovered: {r}")
-            if skipped_ids:
-                ids_str  = ", ".join(skipped_ids[:3])
-                ellipsis = "…" if len(skipped_ids) > 3 else ""
-                gen_warnings.append(
-                    f"{len(skipped_ids)} model(s) not in catalog, skipped: "
-                    f"{ids_str}{ellipsis}"
-                )
-            if truncated:
-                gen_warnings.append(
-                    f"{truncated} block(s) beyond the {_MAX_BLOCKS}-block "
-                    "limit were dropped"
-                )
-            gen_warnings.extend(param_warnings)
-
-            return PresetResult(
-                hlx_dict               = hlx,
-                preset_name            = preset_name,
-                description            = tone_desc,
-                blocks                 = block_meta,
-                signal_chain_rationale = rationale,
-                prompt                 = description,
-                snapshots              = snapshots_spec,
-                warnings               = gen_warnings,
-            )
-
-        except LLMGenerationError:
-            raise
-        except (KeyError, ValueError, json.JSONDecodeError) as exc:
+            return parse_hlx_response(raw, description)
+        except LLMGenerationError as exc:
             last_exc = exc
 
     raise LLMGenerationError(

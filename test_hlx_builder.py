@@ -47,6 +47,8 @@ from hlx_builder import (
     _fuzzy_recover_model_id,
     _sanitize_params,
     build_hlx,
+    build_hlx_prompt,
+    parse_hlx_response,
     save_hlx,
     generate_hlx_preset,
     PresetCatalog,
@@ -623,6 +625,90 @@ class TestPresetCatalog(unittest.TestCase):
                 self.assertEqual(len(entries_before), 1)
                 catalog.remove_entry(entries_before[0]["filename"])
                 self.assertEqual(catalog.list_presets(), [])
+
+
+# ---------------------------------------------------------------------------
+# Group 13 — build_hlx_prompt
+# ---------------------------------------------------------------------------
+
+class TestBuildHlxPrompt(unittest.TestCase):
+
+    def test_returns_tuple(self):
+        result = build_hlx_prompt("clean blues tone")
+        self.assertIsInstance(result, tuple)
+        self.assertEqual(len(result), 2)
+
+    def test_both_strings(self):
+        system, user = build_hlx_prompt("clean blues tone")
+        self.assertIsInstance(system, str)
+        self.assertIsInstance(user, str)
+
+    def test_system_contains_catalog(self):
+        system, _ = build_hlx_prompt("any description")
+        self.assertIn(_AMP_ID, system)
+
+    def test_user_contains_description(self):
+        desc = "warm ambient reverb pad"
+        _, user = build_hlx_prompt(desc)
+        self.assertIn(desc, user)
+
+    def test_gear_hints_injected_when_known_alias(self):
+        """Fender Twin is aliased to HD2_AmpUSDoubleNrm in hx_models.py."""
+        _, user = build_hlx_prompt("I want a Fender Twin clean tone")
+        self.assertIn(_AMP_ID, user)
+
+    def test_no_gear_hints_when_no_alias(self):
+        """A description with no recognisable aliases injects no hint lines."""
+        _, user = build_hlx_prompt("generic clean tone")
+        self.assertNotIn("Gear Match Hints", user)
+
+
+# ---------------------------------------------------------------------------
+# Group 14 — parse_hlx_response
+# ---------------------------------------------------------------------------
+
+class TestParseHlxResponse(unittest.TestCase):
+
+    def test_valid_response_returns_preset_result(self):
+        result = parse_hlx_response(_STUB_RESPONSE, "test description")
+        self.assertIsInstance(result, PresetResult)
+
+    def test_preset_name_from_response(self):
+        result = parse_hlx_response(_STUB_RESPONSE, "test")
+        self.assertEqual(result.preset_name, "Test Preset")
+
+    def test_strips_markdown_fences(self):
+        fenced = f"```json\n{_STUB_RESPONSE}\n```"
+        result = parse_hlx_response(fenced, "test")
+        self.assertIsInstance(result, PresetResult)
+
+    def test_invalid_json_raises_llm_error(self):
+        with self.assertRaises(LLMGenerationError):
+            parse_hlx_response("not valid json at all", "test")
+
+    def test_empty_string_raises_llm_error(self):
+        with self.assertRaises(LLMGenerationError):
+            parse_hlx_response("", "test")
+
+    def test_whitespace_only_raises_llm_error(self):
+        with self.assertRaises(LLMGenerationError):
+            parse_hlx_response("   \n\t  ", "test")
+
+    def test_prompt_field_set_to_description(self):
+        desc = "unique test description string"
+        result = parse_hlx_response(_STUB_RESPONSE, desc)
+        self.assertEqual(result.prompt, desc)
+
+    def test_response_with_unknown_ids_has_warnings(self):
+        result = parse_hlx_response(_STUB_RESPONSE, "test")
+        warning_text = " ".join(result.warnings)
+        self.assertIn("TOTALLY_UNKNOWN_XYZ", warning_text)
+
+    def test_generate_hlx_preset_uses_helpers(self):
+        """generate_hlx_preset() still works correctly through the refactored helpers."""
+        result = generate_hlx_preset("clean blues tone", StubProvider())
+        self.assertIsInstance(result, PresetResult)
+        self.assertEqual(result.preset_name, "Test Preset")
 
 
 if __name__ == "__main__":

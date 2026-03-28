@@ -847,6 +847,12 @@ class HLXWorkspacePanel(ctk.CTkFrame):
             command=self._start_generate)
         self._gen_btn.pack(side="left", padx=6)
 
+        self._manual_btn = ctk.CTkButton(
+            btn_frame, text="📋  Manual Mode", width=130,
+            fg_color="transparent", border_width=1, text_color=_TEXT_BRIGHT,
+            command=self._open_manual_dialog)
+        self._manual_btn.pack(side="left", padx=6)
+
         # Result area — built dynamically after generation
         self._result_frame = None
 
@@ -931,6 +937,15 @@ class HLXWorkspacePanel(ctk.CTkFrame):
         self._set_loading(True)
         threading.Thread(target=self._worker, args=(description,),
                          daemon=True).start()
+
+    def _open_manual_dialog(self) -> None:
+        description = self._text.get("1.0", "end").strip()
+        if not description:
+            self._status_lbl.configure(
+                text="Please describe a tone or artist first.",
+                text_color=_COL_DISC)
+            return
+        ManualHLXDialog(self, description, self._on_result)
 
     def _worker(self, description: str) -> None:
         try:
@@ -1199,6 +1214,223 @@ class HLXWorkspacePanel(ctk.CTkFrame):
         self._set_loading(True)
         threading.Thread(target=self._worker, args=(description,),
                          daemon=True).start()
+
+
+class ManualHLXDialog(ctk.CTkToplevel):
+    """
+    Two-step wizard that lets users generate a preset without an API key.
+
+    Step 1 — Copy the assembled prompt (system + user) to any AI chatbot.
+    Step 2 — Paste the chatbot's JSON response; validate and import it.
+    """
+
+    _TIP = (
+        "Tip: For best results use Claude Sonnet, GPT-4o, or Gemini 1.5 Pro.\n"
+        "The prompt includes the full HX Stomp model catalog (~4 000 tokens)."
+    )
+    _STEP1_HEADER = "Step 1 of 2 — Copy the prompt"
+    _STEP1_BODY   = (
+        "Paste this into Claude.ai, ChatGPT, Gemini, or any capable AI.\n"
+        "Copy the chatbot's complete response, then click Next."
+    )
+    _STEP2_HEADER = "Step 2 of 2 — Paste the response"
+    _STEP2_BODY   = (
+        "Paste the chatbot's complete reply below.\n"
+        "It should be a JSON object starting with {."
+    )
+
+    def __init__(self, parent, description: str, on_result_callback: Callable):
+        super().__init__(parent)
+        self.title("📋 Use Your Own Chatbot")
+        self.resizable(False, False)
+        self.minsize(660, 460)
+        self.grab_set()
+
+        self._description = description
+        self._on_result   = on_result_callback
+
+        from hlx_builder import build_hlx_prompt
+        system_prompt, user_prompt = build_hlx_prompt(description)
+        self._combined_prompt = (
+            "[SYSTEM INSTRUCTIONS]\n"
+            + system_prompt
+            + "\n\n[YOUR REQUEST]\n"
+            + user_prompt
+        )
+
+        self._step = 1
+        self._build_ui()
+
+    # ------------------------------------------------------------------
+    # UI construction
+    # ------------------------------------------------------------------
+
+    def _build_ui(self) -> None:
+        for w in self.winfo_children():
+            w.destroy()
+
+        # Title bar
+        header = ctk.CTkFrame(self, fg_color=_BG_TOOLBAR, corner_radius=0, height=44)
+        header.pack(fill="x")
+        header.pack_propagate(False)
+        ctk.CTkLabel(
+            header, text="📋  Use Your Own Chatbot",
+            font=ctk.CTkFont(size=13, weight="bold"), text_color=_TEXT_BRIGHT,
+        ).pack(side="left", padx=14)
+
+        body = ctk.CTkFrame(self, fg_color=_BG_BASE, corner_radius=0)
+        body.pack(fill="both", expand=True, padx=16, pady=10)
+
+        if self._step == 1:
+            self._build_step1(body)
+        else:
+            self._build_step2(body)
+
+    def _build_step1(self, body: ctk.CTkFrame) -> None:
+        ctk.CTkLabel(
+            body, text=self._STEP1_HEADER,
+            font=ctk.CTkFont(size=12, weight="bold"), text_color=_TEXT_BRIGHT,
+            anchor="w",
+        ).pack(fill="x", pady=(0, 2))
+        ctk.CTkLabel(
+            body, text=self._STEP1_BODY,
+            font=ctk.CTkFont(size=11), text_color=_TEXT_DIM,
+            anchor="w", justify="left",
+        ).pack(fill="x", pady=(0, 6))
+        ctk.CTkLabel(
+            body, text=self._TIP,
+            font=ctk.CTkFont(size=10), text_color=_TEXT_DIM,
+            anchor="w", justify="left",
+        ).pack(fill="x", pady=(0, 6))
+
+        # Scrollable prompt display
+        txt = ctk.CTkTextbox(body, height=260, font=ctk.CTkFont(size=10),
+                             wrap="word", state="normal")
+        txt.insert("1.0", self._combined_prompt)
+        txt.configure(state="disabled")
+        txt.pack(fill="both", expand=True)
+
+        btn_row = ctk.CTkFrame(body, fg_color="transparent")
+        btn_row.pack(fill="x", pady=(10, 0))
+
+        ctk.CTkButton(
+            btn_row, text="📋  Copy to Clipboard", width=160,
+            command=lambda: self._copy_and_advance(txt),
+        ).pack(side="left", padx=(0, 8))
+        ctk.CTkButton(
+            btn_row, text="Next: Paste Response →", width=160,
+            fg_color="transparent", border_width=1, text_color=_TEXT_BRIGHT,
+            command=self._go_step2,
+        ).pack(side="left")
+        ctk.CTkButton(
+            btn_row, text="Cancel", width=80,
+            fg_color="transparent", text_color=_TEXT_DIM,
+            command=self.destroy,
+        ).pack(side="right")
+
+    def _build_step2(self, body: ctk.CTkFrame) -> None:
+        ctk.CTkLabel(
+            body, text=self._STEP2_HEADER,
+            font=ctk.CTkFont(size=12, weight="bold"), text_color=_TEXT_BRIGHT,
+            anchor="w",
+        ).pack(fill="x", pady=(0, 2))
+        ctk.CTkLabel(
+            body, text=self._STEP2_BODY,
+            font=ctk.CTkFont(size=11), text_color=_TEXT_DIM,
+            anchor="w", justify="left",
+        ).pack(fill="x", pady=(0, 6))
+
+        self._paste_box = ctk.CTkTextbox(body, height=260, font=ctk.CTkFont(size=10),
+                                         wrap="word")
+        self._paste_box.pack(fill="both", expand=True)
+
+        self._error_lbl = ctk.CTkLabel(
+            body, text="", font=ctk.CTkFont(size=11),
+            text_color=_COL_DISC, anchor="w", justify="left", wraplength=600,
+        )
+        self._error_lbl.pack(fill="x", pady=(4, 0))
+
+        btn_row = ctk.CTkFrame(body, fg_color="transparent")
+        btn_row.pack(fill="x", pady=(10, 0))
+
+        ctk.CTkButton(
+            btn_row, text="← Back", width=80,
+            fg_color="transparent", border_width=1, text_color=_TEXT_BRIGHT,
+            command=self._go_step1,
+        ).pack(side="left", padx=(0, 8))
+        ctk.CTkButton(
+            btn_row, text="✓  Import & Validate", width=160,
+            command=self._import,
+        ).pack(side="left")
+        ctk.CTkButton(
+            btn_row, text="Cancel", width=80,
+            fg_color="transparent", text_color=_TEXT_DIM,
+            command=self.destroy,
+        ).pack(side="right")
+
+    # ------------------------------------------------------------------
+    # Navigation
+    # ------------------------------------------------------------------
+
+    def _copy_and_advance(self, txt_widget) -> None:
+        self.clipboard_clear()
+        self.clipboard_append(self._combined_prompt)
+        self._go_step2()
+
+    def _go_step2(self) -> None:
+        self._step = 2
+        self._build_ui()
+
+    def _go_step1(self) -> None:
+        self._step = 1
+        self._build_ui()
+
+    # ------------------------------------------------------------------
+    # Import / validate
+    # ------------------------------------------------------------------
+
+    def _import(self) -> None:
+        raw = self._paste_box.get("1.0", "end").strip()
+        if not raw:
+            self._error_lbl.configure(text="Nothing pasted yet.")
+            return
+        self._error_lbl.configure(text="Validating…", text_color=_TEXT_DIM)
+        self.update_idletasks()
+        threading.Thread(target=self._parse_worker, args=(raw,), daemon=True).start()
+
+    def _parse_worker(self, raw: str) -> None:
+        try:
+            from hlx_builder import parse_hlx_response
+            result = parse_hlx_response(raw, self._description)
+            self.after(0, lambda: self._on_parse_success(result))
+        except Exception as exc:
+            msg = self._user_message(str(exc))
+            self.after(0, lambda m=msg: self._on_parse_error(m))
+
+    @staticmethod
+    def _user_message(exc_msg: str) -> str:
+        if not exc_msg or "Empty response" in exc_msg:
+            return "Nothing pasted yet."
+        if "{" not in exc_msg and "JSON" not in exc_msg and exc_msg.startswith("Could not"):
+            return (
+                "Could not find JSON in the pasted text. "
+                "Make sure you copied the chatbot's complete reply."
+            )
+        if "JSONDecodeError" in exc_msg or "not valid JSON" in exc_msg.lower():
+            return "The pasted text is not valid JSON. Check for cut-off responses."
+        if "No valid amp block" in exc_msg or "No recognisable" in exc_msg:
+            return (
+                "No recognisable HX Stomp models found. "
+                "Try a different description or chatbot."
+            )
+        return exc_msg
+
+    def _on_parse_success(self, result) -> None:
+        self.destroy()
+        self._on_result(result)
+
+    def _on_parse_error(self, msg: str) -> None:
+        self._error_lbl.configure(text=msg, text_color=_COL_DISC)
 
 
 class GeneratePresetDialog(ctk.CTkToplevel):

@@ -343,6 +343,26 @@ Full guide, tips, and troubleshooting →
 
 ---
 
+### 📋 Manual Mode — Use Any AI Chatbot
+
+Don't have an API key? Click **📋 Manual Mode** next to the Generate Preset button.
+
+1. The app assembles the full prompt (HX Stomp model catalog + your description).
+2. Copy it to the clipboard and paste into any capable AI chatbot — Claude.ai,
+   ChatGPT, Gemini, or similar.
+3. Copy the chatbot's response back into the app and click **✓ Import & Validate**.
+
+The same validation pipeline runs: unknown model IDs are fuzzy-matched,
+parameters are clamped to valid ranges, and a summary of any corrections is shown.
+The result renders identically to an API-generated preset — you can save, export,
+and catalog it the same way.
+
+**Recommended models:** Claude Sonnet or later, GPT-4o, Gemini 1.5 Pro.
+The prompt includes the full HX Stomp model catalog (~4 000 tokens) so a
+model with a large context window produces the most accurate results.
+
+---
+
 ### 📋 Preset Catalog
 
 All generated presets are saved to `~/.hxstomp/presets/` and tracked in
