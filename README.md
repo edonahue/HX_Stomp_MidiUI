@@ -78,6 +78,38 @@ python main.py --mock-midi
 python main.py --list-ports
 ```
 
+## Troubleshooting
+
+**`ModuleNotFoundError: No module named 'mido'`** (or `customtkinter`)**
+
+```bash
+pip install -r requirements.txt
+# Linux only — required by the python-rtmidi MIDI backend:
+sudo apt install libasound2-dev libjack-dev
+```
+
+**No MIDI ports found / HX Stomp not detected**
+- Confirm the device is connected via USB and powered on.
+- Check what ports are visible: `python main.py --list-ports`
+- On Linux, ensure your user is in the `audio` group:
+  `sudo usermod -aG audio $USER` (then log out and back in).
+- Use `--mock-midi` to run the soundboard without any hardware.
+
+**AI tone generation hangs or shows an error**
+- Check your API key via the **⚙ Configure…** button in the LLM panel.
+- For Ollama: confirm the server is running (`ollama serve`) and the model
+  is pulled (`ollama pull llama3.2`).
+- API calls time out after 60 seconds — a slow connection will show an error
+  rather than hanging indefinitely.
+- Use `--no-llm` to run the soundboard with AI features disabled.
+
+**Presets file is empty or shows an error on startup**
+- The app will show a dialog and start with an empty preset list.
+- Check that `presets.json` is valid JSON: `python -m json.tool presets.json`
+- Ensure all `preset` values are 0–127 and `snapshot` values are 0–7.
+
+---
+
 After launch the app opens to the **🎸 HLX Generator** tab — describe a tone,
 configure your AI provider once, and generate a ready-to-import `.hlx` preset.
 Click the **🎵 Soundboard** tab to manage tone cards and connect to your HX Stomp via MIDI

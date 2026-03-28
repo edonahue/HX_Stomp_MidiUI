@@ -135,7 +135,7 @@ class AnthropicProvider(LLMProvider):
             raise LLMGenerationError(
                 "No Anthropic API key. Set ANTHROPIC_API_KEY or configure via ⚙ Configure…"
             )
-        client = anthropic.Anthropic(api_key=key)
+        client = anthropic.Anthropic(api_key=key, timeout=60.0)
         try:
             msg = client.messages.create(
                 model=self.model,
@@ -168,7 +168,7 @@ class OpenAIProvider(LLMProvider):
             raise LLMGenerationError(
                 "No OpenAI API key. Set OPENAI_API_KEY or configure via ⚙ Configure…"
             )
-        client = openai.OpenAI(api_key=key)
+        client = openai.OpenAI(api_key=key, timeout=60.0)
         try:
             resp = client.chat.completions.create(
                 model=self.model,
@@ -245,6 +245,7 @@ class GeminiProvider(LLMProvider):
             resp = model.generate_content(
                 user,
                 generation_config={"max_output_tokens": max_tokens},
+                request_options={"timeout": 60},
             )
             return resp.text
         except Exception as exc:

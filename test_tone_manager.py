@@ -192,6 +192,42 @@ class TestToneManagerPersistence(unittest.TestCase):
         data = json.loads(path.read_text())
         self.assertNotIn("category", data[0])
 
+    # --- validate-on-load ---
+
+    def test_load_invalid_preset_raises(self):
+        path = self._tmpfile()
+        path.write_text(json.dumps([{"name": "Bad", "preset": 200}]))
+        with self.assertRaises(ValueError) as cm:
+            ToneManager(filepath=path)
+        self.assertIn("Bad", str(cm.exception))
+        self.assertIn("preset", str(cm.exception))
+
+    def test_load_invalid_snapshot_raises(self):
+        path = self._tmpfile()
+        path.write_text(json.dumps([{"name": "BadSnap", "preset": 0, "snapshot": 8}]))
+        with self.assertRaises(ValueError) as cm:
+            ToneManager(filepath=path)
+        self.assertIn("BadSnap", str(cm.exception))
+        self.assertIn("snapshot", str(cm.exception))
+
+    # --- create_empty ---
+
+    def test_create_empty_has_no_tones(self):
+        tm = ToneManager.create_empty("/tmp/_hxstomp_test_empty.json")
+        self.assertEqual(tm.tones, [])
+
+    def test_create_empty_filepath_set(self):
+        tm = ToneManager.create_empty("/tmp/_hxstomp_test_empty.json")
+        self.assertEqual(tm.filepath, Path("/tmp/_hxstomp_test_empty.json"))
+
+    def test_create_empty_save_works(self):
+        path = self._tmpfile()
+        tm = ToneManager.create_empty(path)
+        tm.add(Tone("Fresh", preset=5))
+        tm.save()
+        tm2 = ToneManager(filepath=path)
+        self.assertIsNotNone(tm2.get("Fresh"))
+
 
 # ===========================================================================
 # Group C: Tone data model
