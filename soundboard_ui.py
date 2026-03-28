@@ -641,14 +641,23 @@ class SoundboardApp(ctk.CTk):
 
     def _set_window_icon(self) -> None:
         icon_path = Path(__file__).parent / "assets" / "icons" / "app-icon.png"
-        if icon_path.exists():
-            try:
-                from PIL import Image as _PilImg, ImageTk as _PilTk
-                img = _PilTk.PhotoImage(_PilImg.open(icon_path))
-                self.wm_iconphoto(True, img)
-                self._app_icon_ref = img  # prevent GC
-            except Exception:
-                pass
+        if not icon_path.exists():
+            return
+        try:
+            from PIL import Image as _PilImg, ImageTk as _PilTk
+            src = _PilImg.open(icon_path)
+            # Multi-size: X11/Wayland compositor picks the best fit
+            self._app_icon_refs = []
+            for s in (48, 128, 256, 512):
+                resized = src.resize((s, s), _PilImg.LANCZOS)
+                photo   = _PilTk.PhotoImage(resized)
+                self._app_icon_refs.append(photo)  # prevent GC
+            # Pass all sizes; Tk/WM selects the most appropriate
+            self.wm_iconphoto(True, *self._app_icon_refs)
+            # Hint to WM for taskbar grouping (matches StartupWMClass in .desktop)
+            self.tk.call("wm", "iconname", self._w, "hxstomp")
+        except Exception:
+            pass
 
     def _build_ui(self) -> None:
         self._build_menu()

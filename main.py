@@ -195,6 +195,88 @@ class MockHXStompMidi:
 # Entry point
 # ---------------------------------------------------------------------------
 
+def _install_desktop() -> None:
+    """
+    Install the .desktop launcher and app icon into the user's XDG directories.
+
+    Installs icons at 48, 128, 256, 512 px into ~/.local/share/icons/hicolor/
+    and creates ~/.local/share/applications/hxstomp.desktop.
+
+    Safe to re-run — it overwrites any previous installation.
+    """
+    import shutil
+    import subprocess
+    from pathlib import Path
+
+    src_icon = Path(__file__).parent / "assets" / "icons" / "app-icon.png"
+    if not src_icon.exists():
+        print(f"ERROR: App icon not found at {src_icon}")
+        sys.exit(1)
+
+    # ── Icons ──────────────────────────────────────────────────────────────────
+    try:
+        from PIL import Image
+    except ImportError:
+        print("ERROR: Pillow is required. Run: pip install Pillow")
+        sys.exit(1)
+
+    icon_base = Path.home() / ".local" / "share" / "icons" / "hicolor"
+    img = Image.open(src_icon)
+    for size in (48, 128, 256, 512):
+        dest_dir = icon_base / f"{size}x{size}" / "apps"
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        img.resize((size, size), Image.LANCZOS).save(dest_dir / "hxstomp.png")
+        print(f"  Icon {size}x{size} → {dest_dir / 'hxstomp.png'}")
+
+    # Write a minimal index.theme so icon tools can cache it
+    index = icon_base / "index.theme"
+    if not index.exists():
+        index.write_text(
+            "[Icon Theme]\nName=hicolor\nComment=Hicolor theme\n"
+            "Directories=48x48/apps,128x128/apps,256x256/apps,512x512/apps\n\n"
+            "[48x48/apps]\nSize=48\nContext=Applications\nType=Fixed\n\n"
+            "[128x128/apps]\nSize=128\nContext=Applications\nType=Fixed\n\n"
+            "[256x256/apps]\nSize=256\nContext=Applications\nType=Fixed\n\n"
+            "[512x512/apps]\nSize=512\nContext=Applications\nType=Fixed\n"
+        )
+
+    for cmd in (
+        ["gtk-update-icon-cache", "-f", str(icon_base)],
+        ["update-desktop-database", str(Path.home() / ".local" / "share" / "applications")],
+    ):
+        if shutil.which(cmd[0]):
+            subprocess.run(cmd, capture_output=True)
+
+    # ── .desktop file ──────────────────────────────────────────────────────────
+    app_dir = Path.home() / ".local" / "share" / "applications"
+    app_dir.mkdir(parents=True, exist_ok=True)
+    python_bin = shutil.which("python3") or sys.executable
+    main_py    = Path(__file__).resolve()
+    desktop    = app_dir / "hxstomp.desktop"
+    desktop.write_text(
+        "[Desktop Entry]\n"
+        "Version=1.1\n"
+        "Type=Application\n"
+        "Name=HX Stomp Soundboard\n"
+        "GenericName=Guitar Pedal Controller\n"
+        "Comment=MIDI soundboard for the Line 6 HX Stomp guitar processor\n"
+        f"Exec={python_bin} {main_py} %F\n"
+        "Icon=hxstomp\n"
+        "Terminal=false\n"
+        "Categories=Audio;Music;MIDI;\n"
+        "Keywords=guitar;pedal;midi;line6;hx;stomp;\n"
+        "StartupNotify=true\n"
+        "StartupWMClass=hxstomp\n"
+    )
+    print(f"  .desktop    → {desktop}")
+
+    if shutil.which("update-desktop-database"):
+        subprocess.run(["update-desktop-database", str(app_dir)], capture_output=True)
+
+    print("\nInstalled. The app will appear in your application launcher.")
+    print("If you use the Cosmic dock, log out and back in to refresh it.")
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="HX Stomp MIDI Soundboard")
     parser.add_argument(
@@ -214,6 +296,10 @@ def main() -> None:
         help="Disable AI tone generation (✨ Generate button shows info dialog)",
     )
     parser.add_argument(
+        "--install-desktop", action="store_true",
+        help="Install the .desktop launcher and app icon for the system (Pop!_OS / GNOME / KDE)",
+    )
+    parser.add_argument(
         "--api-key", default=None,
         help="API key for the configured LLM provider (saves to ~/.hxstomp/config.json)",
     )
@@ -223,6 +309,10 @@ def main() -> None:
         help="Override LLM provider from config",
     )
     args = parser.parse_args()
+
+    if args.install_desktop:
+        _install_desktop()
+        sys.exit(0)
 
     if args.list_ports:
         ports = HXStompMidi.list_output_ports()
