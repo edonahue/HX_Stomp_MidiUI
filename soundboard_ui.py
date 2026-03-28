@@ -626,15 +626,16 @@ class SoundboardApp(ctk.CTk):
                                bg="#2a2a2a")
         pane.pack(fill="both", expand=True)
 
-        ws_outer = ctk.CTkScrollableFrame(pane, fg_color=_BG_BASE,
-                                           corner_radius=0)
+        ws_pane = ctk.CTkFrame(pane, fg_color="transparent")
+        ws_outer = ctk.CTkScrollableFrame(ws_pane, fg_color="transparent")
+        ws_outer.pack(fill="both", expand=True)
         self._hlx_workspace = HLXWorkspacePanel(
             ws_outer,
             no_llm=self._no_llm,
             on_preset_saved=self._on_hlx_preset_saved,
         )
         self._hlx_workspace.pack(fill="x", padx=0, pady=0)
-        pane.add(ws_outer, minsize=220, stretch="always")
+        pane.add(ws_pane, minsize=220, stretch="always")
 
         self._hlx_catalog = PresetCatalogPanel(pane)
         pane.add(self._hlx_catalog, minsize=120, stretch="always")

@@ -326,7 +326,9 @@ class ProviderConfigDialog(ctk.CTkToplevel):
         super().__init__(parent)
         self.title("Configure Provider")
         self.resizable(False, False)
-        self.grab_set()
+        self.transient(parent)
+        self.lift()
+        self.after(10, self._safe_grab)
 
         self._name = provider_name
         self._cfg  = load_config()
@@ -424,6 +426,12 @@ class ProviderConfigDialog(ctk.CTkToplevel):
             self._cfg[f"{name}_{key}"] = var.get().strip()
         save_config(self._cfg)
         self.destroy()
+    def _safe_grab(self):
+        try:
+            self.wait_visibility()
+            self.grab_set()
+        except Exception:
+            pass
 
 
 # ---------------------------------------------------------------------------
@@ -1052,7 +1060,7 @@ class HLXWorkspacePanel(ctk.CTkFrame):
                 card,
                 text=cat,
                 font=ctk.CTkFont(size=9),
-                text_color="#ffffffaa",
+                text_color="#d9d9d9",
             ).pack(padx=8, pady=(0, 8))
 
             if i < len(result.blocks) - 1:
