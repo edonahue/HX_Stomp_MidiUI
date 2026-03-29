@@ -20,6 +20,9 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
       - name: Run test suite (headless — no hardware or display required)
         run: |
           python -m unittest test_hlx_builder test_tone_manager test_midi_and_utils test_icon_manager -v
