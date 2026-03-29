@@ -1,4 +1,4 @@
-# LLM Providers — Setup Guide
+# HLX Generator — LLM Providers Setup Guide
 
 This guide covers configuring each supported AI provider for both
 **✨ Label Tone** (tone metadata) and **📦 Generate Preset** (.hlx file

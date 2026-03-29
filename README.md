@@ -1,9 +1,9 @@
-# HX Stomp — HLX Generator & Soundboard
+# HLX Generator
 
-A dark-themed Python desktop app for the **Line 6 HX Stomp** and Helix-family
-processors. It has two distinct capabilities that work independently or together:
+An AI-powered `.hlx` preset builder and MIDI soundboard for the **Line 6 HX Stomp**
+and Helix-family processors.
 
-**AI Preset Tools** — describe a tone in plain English and get a complete `.hlx`
+**AI Preset Generation** — describe a tone in plain English and get a complete `.hlx`
 preset file built from the real HX Stomp model catalog — amp, cab, and effects with
 starting parameters, per-block explanations, and three named snapshots, ready to
 import into HX Edit. Works with Claude, GPT-4o, Gemini, Ollama (local), or any
@@ -48,8 +48,8 @@ See [AI Providers](#ai-providers) for setup.
 
 ```bash
 # Clone the repository
-git clone https://github.com/edonahue/hx_stomp_midiui.git
-cd hx_stomp_midiui
+git clone https://github.com/edonahue/hlx-generator.git
+cd hlx-generator
 
 # Create a virtual environment (recommended)
 python -m venv .venv
@@ -476,7 +476,7 @@ python main.py --no-llm
 ### Project Structure
 
 ```
-hx_stomp_midiui/
+hlx-generator/
 ├── main.py              Entry point, CLI flags, MockHXStompMidi
 ├── llm_generator.py     AI providers, GenerateToneDialog, GeneratePresetDialog,
 │                          ManualHLXDialog, PresetCatalogDialog

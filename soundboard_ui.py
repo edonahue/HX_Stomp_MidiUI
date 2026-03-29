@@ -606,7 +606,7 @@ class SoundboardApp(ctk.CTk):
     def __init__(self, presets_file: str = "presets.json",
                  no_llm: bool = False):
         super().__init__()
-        self.title("HX Stomp — HLX Generator & Soundboard")
+        self.title("HLX Generator — AI Preset Builder & MIDI Soundboard")
         self.minsize(700, 520)
 
         self._midi   = HXStompMidi()

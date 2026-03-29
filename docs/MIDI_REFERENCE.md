@@ -1,4 +1,4 @@
-# MIDI Reference — HX Stomp Soundboard
+# MIDI Reference — HLX Generator
 
 Complete MIDI control change (CC) map and addressing guide for the Line 6 HX Stomp,
 as implemented in this application.

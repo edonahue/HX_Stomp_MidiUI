@@ -1,4 +1,4 @@
-# HX Stomp Preset Generation (.hlx)
+# HLX Generator — AI Preset Generation
 
 Generate complete Line 6 HX Stomp preset files using an AI language model.
 The AI selects amp and effect models from the HX Stomp catalog, sets starting

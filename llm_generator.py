@@ -1,7 +1,7 @@
 """
 llm_generator.py
 
-LLM-powered tone generation for the HX Stomp Soundboard.
+HLX Generator — AI-powered .hlx preset builder for Line 6 HX Stomp / Helix.
 
 Supports multiple providers: Anthropic (Claude), OpenAI, Ollama (local), Gemini.
 Only the `anthropic` package is required for the default provider; others are

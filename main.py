@@ -1,7 +1,7 @@
 """
 main.py
 
-Entry point for the HX Stomp Soundboard.
+Entry point for HLX Generator.
 
 Usage
 -----
@@ -257,7 +257,7 @@ def _install_desktop() -> None:
         "[Desktop Entry]\n"
         "Version=1.1\n"
         "Type=Application\n"
-        "Name=HX Stomp Soundboard\n"
+        "Name=HLX Generator\n"
         "GenericName=Guitar Pedal Controller\n"
         "Comment=MIDI soundboard for the Line 6 HX Stomp guitar processor\n"
         f"Exec={python_bin} {main_py} %F\n"
@@ -278,7 +278,7 @@ def _install_desktop() -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="HX Stomp MIDI Soundboard")
+    parser = argparse.ArgumentParser(description="HLX Generator — AI Preset Builder & MIDI Soundboard")
     parser.add_argument(
         "--presets", default="presets.json",
         help="Path to tone definitions JSON file (default: presets.json)",
