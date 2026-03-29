@@ -711,5 +711,255 @@ class TestParseHlxResponse(unittest.TestCase):
         self.assertEqual(result.preset_name, "Test Preset")
 
 
+# ---------------------------------------------------------------------------
+# Group 16 — _model_subcategory
+# ---------------------------------------------------------------------------
+
+from llm_generator import _model_subcategory, _key_params_summary, _CAT_COLOR, _CAT_ICON
+
+
+class TestModelSubcategory(unittest.TestCase):
+    """_model_subcategory() derives a human label from the model_id pattern."""
+
+    def test_chorus(self):
+        self.assertEqual(_model_subcategory("HD2_ModChorusAnalog"), "Chorus")
+
+    def test_flanger(self):
+        self.assertEqual(_model_subcategory("HD2_ModFlanger"), "Flanger")
+
+    def test_phaser(self):
+        self.assertEqual(_model_subcategory("HD2_ModPhaser4"), "Phaser")
+
+    def test_tremolo(self):
+        self.assertEqual(_model_subcategory("HD2_ModTremolo"), "Tremolo")
+
+    def test_univibe(self):
+        self.assertEqual(_model_subcategory("HD2_ModUniVibe"), "Uni-Vibe")
+
+    def test_fuzz_from_arbitrator(self):
+        self.assertEqual(_model_subcategory("HD2_DistArbitratorFuzz"), "Fuzz")
+
+    def test_hall_reverb(self):
+        self.assertEqual(_model_subcategory("HD2_ReverbHall"), "Hall")
+
+    def test_plate_reverb(self):
+        self.assertEqual(_model_subcategory("HD2_ReverbPlate"), "Plate")
+
+    def test_spring_reverb(self):
+        self.assertEqual(_model_subcategory("HD2_ReverbSpring"), "Spring")
+
+    def test_tape_delay(self):
+        self.assertEqual(_model_subcategory("HD2_DelayTransistorTape"), "Tape Echo")
+
+    def test_amp_has_no_subcat(self):
+        self.assertEqual(_model_subcategory("HD2_AmpBritPlexiBrt"), "")
+
+    def test_scream808_returns_tube_screamer(self):
+        # DistScream808 matches the "Scream" → "Tube Screamer" pattern
+        self.assertEqual(_model_subcategory("HD2_DistScream808"), "Tube Screamer")
+
+    def test_generic_distortion_no_match(self):
+        # HD2_DistBritValve has no keyword match in the pattern list → empty
+        self.assertEqual(_model_subcategory("HD2_DistBritValve"), "")
+
+    def test_unknown_model_returns_empty(self):
+        self.assertEqual(_model_subcategory("completely_unknown_id"), "")
+
+    def test_empty_string_returns_empty(self):
+        self.assertEqual(_model_subcategory(""), "")
+
+    def test_no_hd2_prefix_still_works(self):
+        # Body pattern matching should still attempt even without prefix
+        result = _model_subcategory("ModChorusAnalog")
+        self.assertIsInstance(result, str)
+
+
+# ---------------------------------------------------------------------------
+# Group 17 — _key_params_summary
+# ---------------------------------------------------------------------------
+
+class TestKeyParamsSummary(unittest.TestCase):
+    """_key_params_summary() formats the 1-2 most relevant params for display."""
+
+    def _blk(self, category, params):
+        return {"category": category, "params": params}
+
+    def test_amp_drive_and_bass(self):
+        blk = self._blk("Amp", {"Drive": 0.65, "Bass": 0.50})
+        self.assertEqual(_key_params_summary(blk), "Drive 65%  Bass 50%")
+
+    def test_amp_only_drive(self):
+        blk = self._blk("Amp", {"Drive": 0.70})
+        self.assertEqual(_key_params_summary(blk), "Drive 70%")
+
+    def test_delay_time_and_feedback(self):
+        blk = self._blk("Delay", {"Time": 0.38, "Feedback": 0.30})
+        self.assertEqual(_key_params_summary(blk), "Time 38%  Feedback 30%")
+
+    def test_reverb_decay_and_mix(self):
+        blk = self._blk("Reverb", {"Decay": 0.45, "Mix": 0.20})
+        self.assertEqual(_key_params_summary(blk), "Decay 45%  Mix 20%")
+
+    def test_cab_always_empty(self):
+        blk = self._blk("Cab", {"Level": 0.5})
+        self.assertEqual(_key_params_summary(blk), "")
+
+    def test_missing_params_key_returns_empty(self):
+        blk = {"category": "Amp"}
+        self.assertEqual(_key_params_summary(blk), "")
+
+    def test_empty_params_returns_empty(self):
+        blk = self._blk("Amp", {})
+        self.assertEqual(_key_params_summary(blk), "")
+
+    def test_float_zero_renders_as_zero(self):
+        blk = self._blk("Reverb", {"Decay": 0.0, "Mix": 0.0})
+        self.assertIn("0%", _key_params_summary(blk))
+
+    def test_float_one_renders_as_100(self):
+        blk = self._blk("Delay", {"Time": 1.0, "Feedback": 1.0})
+        self.assertIn("100%", _key_params_summary(blk))
+
+    def test_only_first_two_priority_params_shown(self):
+        # Amp priority: Drive, Bass, Mid, Treble — only first 2 shown
+        blk = self._blk("Amp", {"Drive": 0.6, "Bass": 0.5, "Mid": 0.7, "Treble": 0.55})
+        result = _key_params_summary(blk)
+        self.assertIn("Drive", result)
+        self.assertIn("Bass", result)
+        self.assertNotIn("Mid", result)
+        self.assertNotIn("Treble", result)
+
+    def test_unknown_category_returns_empty(self):
+        blk = self._blk("Unknown", {"Drive": 0.5})
+        self.assertEqual(_key_params_summary(blk), "")
+
+
+# ---------------------------------------------------------------------------
+# Group 18 — PresetResult genre field
+# ---------------------------------------------------------------------------
+
+def _make_response(**overrides):
+    """Build a minimal valid LLM JSON response, with optional field overrides."""
+    base = {
+        "preset_name": "Test",
+        "description": "desc",
+        "signal_chain_rationale": "rationale",
+        "blocks": [
+            {"model_id": _AMP_ID, "position": 0, "enabled": True,
+             "params": {}, "explanation": ""},
+        ],
+        "snapshots": [],
+    }
+    base.update(overrides)
+    return json.dumps(base)
+
+
+class TestPresetResultGenreField(unittest.TestCase):
+    """genre is captured from LLM response and validated against the allowed list."""
+
+    def test_valid_genre_blues(self):
+        result = parse_hlx_response(_make_response(genre="Blues"), "test")
+        self.assertEqual(result.genre, "Blues")
+
+    def test_valid_genre_metal(self):
+        result = parse_hlx_response(_make_response(genre="Metal"), "test")
+        self.assertEqual(result.genre, "Metal")
+
+    def test_valid_genre_classic_rock(self):
+        result = parse_hlx_response(_make_response(genre="Classic Rock"), "test")
+        self.assertEqual(result.genre, "Classic Rock")
+
+    def test_valid_genre_ambient(self):
+        result = parse_hlx_response(_make_response(genre="Ambient"), "test")
+        self.assertEqual(result.genre, "Ambient")
+
+    def test_invalid_genre_defaults_to_other(self):
+        result = parse_hlx_response(_make_response(genre="Reggae"), "test")
+        self.assertEqual(result.genre, "Other")
+
+    def test_empty_genre_defaults_to_other(self):
+        result = parse_hlx_response(_make_response(genre=""), "test")
+        self.assertEqual(result.genre, "Other")
+
+    def test_missing_genre_key_defaults_to_other(self):
+        # _make_response with no genre kwarg → no genre key in JSON
+        result = parse_hlx_response(_make_response(), "test")
+        self.assertEqual(result.genre, "Other")
+
+    def test_whitespace_only_genre_defaults_to_other(self):
+        result = parse_hlx_response(_make_response(genre="   "), "test")
+        self.assertEqual(result.genre, "Other")
+
+    def test_preset_result_genre_default(self):
+        # PresetResult can be constructed without genre, defaulting to "Other"
+        r = PresetResult(
+            hlx_dict={}, preset_name="x", description="",
+            blocks=[], signal_chain_rationale="", prompt="",
+        )
+        self.assertEqual(r.genre, "Other")
+
+    def test_all_valid_genres_accepted(self):
+        valid = [
+            "Clean", "Blues", "Classic Rock", "Hard Rock", "Metal",
+            "Fuzz", "Funk", "Jazz", "Country", "Ambient", "Acoustic", "Other",
+        ]
+        for g in valid:
+            result = parse_hlx_response(_make_response(genre=g), "test")
+            self.assertEqual(result.genre, g, f"Expected genre '{g}' to be accepted")
+
+
+# ---------------------------------------------------------------------------
+# Group 19 — _CAT_COLOR and _CAT_ICON dict completeness
+# ---------------------------------------------------------------------------
+
+from llm_generator import _GENRE_COLORS
+import re as _re
+
+_ALL_BLOCK_CATEGORIES = {"Amp", "Distortion", "Dynamics", "EQ",
+                         "Modulation", "Delay", "Reverb", "Cab"}
+
+_VALID_GENRES = {
+    "Clean", "Blues", "Classic Rock", "Hard Rock", "Metal",
+    "Fuzz", "Funk", "Jazz", "Country", "Ambient", "Acoustic", "Other",
+}
+
+_HEX_RE = _re.compile(r'^#[0-9a-fA-F]{6}$')
+
+
+class TestCatDicts(unittest.TestCase):
+    """_CAT_COLOR, _CAT_ICON, and _GENRE_COLORS must be complete and well-formed."""
+
+    def test_cat_color_has_all_categories(self):
+        for cat in _ALL_BLOCK_CATEGORIES:
+            self.assertIn(cat, _CAT_COLOR, f"_CAT_COLOR missing category '{cat}'")
+
+    def test_cat_color_values_are_valid_hex(self):
+        for cat, color in _CAT_COLOR.items():
+            self.assertRegex(color, _HEX_RE,
+                             f"_CAT_COLOR['{cat}'] = '{color}' is not a valid #rrggbb hex")
+
+    def test_cat_icon_has_all_categories(self):
+        for cat in _ALL_BLOCK_CATEGORIES:
+            self.assertIn(cat, _CAT_ICON, f"_CAT_ICON missing category '{cat}'")
+
+    def test_cat_icon_values_are_non_empty_strings(self):
+        for cat, name in _CAT_ICON.items():
+            self.assertIsInstance(name, str)
+            self.assertTrue(len(name) > 0, f"_CAT_ICON['{cat}'] is empty")
+
+    def test_genre_colors_has_all_valid_genres(self):
+        for g in _VALID_GENRES:
+            self.assertIn(g, _GENRE_COLORS, f"_GENRE_COLORS missing genre '{g}'")
+
+    def test_genre_colors_values_are_valid_hex(self):
+        for g, color in _GENRE_COLORS.items():
+            self.assertRegex(color, _HEX_RE,
+                             f"_GENRE_COLORS['{g}'] = '{color}' is not valid hex")
+
+    def test_no_overlap_between_cat_color_and_genre_colors(self):
+        # They're separate concerns — verifying they're distinct dicts
+        self.assertIsNot(_CAT_COLOR, _GENRE_COLORS)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

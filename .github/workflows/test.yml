@@ -22,4 +22,4 @@ jobs:
 
       - name: Run test suite (headless — no hardware or display required)
         run: |
-          python -m unittest test_hlx_builder test_tone_manager test_midi_and_utils -v
+          python -m unittest test_hlx_builder test_tone_manager test_midi_and_utils test_icon_manager -v
