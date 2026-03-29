@@ -118,10 +118,14 @@ Per snapshot: state which blocks are active (true) or bypassed (false).
 The amp block should almost always stay active.
 Tip: put a booster/overdrive before the amp, disabled in Rhythm, enabled in Lead.
 
+GENRE: Classify the preset with exactly one of these labels:
+Clean | Blues | Classic Rock | Hard Rock | Metal | Fuzz | Funk | Jazz | Country | Ambient | Acoustic | Other
+
 EXAMPLE (4-block chain — your response must follow this exact structure):
 {{
   "preset_name": "Plexi Crunch",
   "description": "Classic British crunch with optional boost for leads.",
+  "genre": "Classic Rock",
   "blocks": [
     {{"model_id": "HD2_DistScream808", "position": 0, "enabled": false,
       "params": {{"Drive": 0.40, "Tone": 0.50, "Level": 0.65}},
@@ -516,6 +520,9 @@ class PresetResult:
     blocks:                 list[dict]  # [{model_id, name, category, explanation}, ...]
     signal_chain_rationale: str
     prompt:                 str
+    genre:                  str        = "Other"
+    # One of: Clean | Blues | Classic Rock | Hard Rock | Metal | Fuzz |
+    #         Funk | Jazz | Country | Ambient | Acoustic | Other
     snapshots:              list[dict] = field(default_factory=list)
     # Each snapshot: {"name": str, "description": str, "block_states": {blockN: bool}}
     warnings:               list[str]  = field(default_factory=list)
@@ -571,6 +578,7 @@ class PresetCatalog:
             "description":            result.description,
             "created":                datetime.now().isoformat(timespec="seconds"),
             "prompt":                 result.prompt,
+            "genre":                  result.genre,
             "blocks":                 result.blocks,
             "signal_chain_rationale": result.signal_chain_rationale,
             "snapshots":              result.snapshots,
@@ -731,6 +739,12 @@ def parse_hlx_response(raw: str, description: str) -> PresetResult:
         preset_name = str(data.get("preset_name", "New Preset"))[:16]
         tone_desc   = str(data.get("description", ""))
         rationale   = str(data.get("signal_chain_rationale", ""))
+        _VALID_GENRES = {
+            "Clean", "Blues", "Classic Rock", "Hard Rock", "Metal",
+            "Fuzz", "Funk", "Jazz", "Country", "Ambient", "Acoustic", "Other",
+        }
+        raw_genre = str(data.get("genre", "Other")).strip()
+        genre = raw_genre if raw_genre in _VALID_GENRES else "Other"
         raw_blocks  = data.get("blocks", [])
 
         if not isinstance(raw_blocks, list) or not raw_blocks:
@@ -872,6 +886,7 @@ def parse_hlx_response(raw: str, description: str) -> PresetResult:
             blocks                 = block_meta,
             signal_chain_rationale = rationale,
             prompt                 = description,
+            genre                  = genre,
             snapshots              = snapshots_spec,
             warnings               = gen_warnings,
         )

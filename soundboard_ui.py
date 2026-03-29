@@ -81,16 +81,16 @@ _CARD_H       = 90
 _CARD_RADIUS  = 10
 _MIN_COLS     = 1
 
-# Category badge colors for tone cards (user-facing categories)
+# Category badge colors for tone cards — aligned with Line 6 HX color scheme
 _TONE_CAT_COLORS: dict[str, str] = {
-    "Clean":     "#4A90D9",
-    "Overdrive": "#e67e22",
-    "High Gain": "#c0392b",
-    "Fuzz":      "#8e44ad",
-    "Ambient":   "#16a085",
-    "Bass":      "#2980b9",
-    "Acoustic":  "#27ae60",
-    "Other":     "#666666",
+    "Clean":     "#2c6fad",   # cool blue
+    "Overdrive": "#c8930a",   # amber-yellow (Line 6 drive color)
+    "High Gain": "#bb2222",   # red (Line 6 amp/high-gain color)
+    "Fuzz":      "#7b2fbe",   # purple (Line 6 filter/EQ color)
+    "Ambient":   "#0e7a8c",   # cyan-teal (Line 6 reverb color)
+    "Bass":      "#3d4fb5",   # blue-indigo (Line 6 modulation color)
+    "Acoustic":  "#1e8c45",   # green (Line 6 delay color)
+    "Other":     "#555555",
 }
 
 

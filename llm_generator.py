@@ -724,31 +724,195 @@ class GenerateToneDialog(ctk.CTkToplevel):
 # GeneratePresetDialog
 # ---------------------------------------------------------------------------
 
-# Category label → short emoji badge shown in the signal chain strip
-_CAT_BADGE: dict[str, str] = {
-    "Amp":        "🎸",
-    "Distortion": "🔥",
-    "Dynamics":   "⚡",
-    "EQ":         "🎛",
-    "Modulation": "🌀",
-    "Delay":      "🔁",
-    "Reverb":     "🌊",
-    "Cab":        "📦",
+# Category → Phosphor icon name (maps to assets/icons/{name}.png)
+# Fallback single-letter used when icon file is missing
+_CAT_ICON: dict[str, str] = {
+    "Amp":        "speaker-high",
+    "Distortion": "lightning",
+    "Dynamics":   "gauge",
+    "EQ":         "sliders-horizontal",
+    "Modulation": "wave-sine",
+    "Delay":      "timer",
+    "Reverb":     "waves",
+    "Cab":        "speaker-none",
 }
 
+_CAT_ICON_FALLBACK: dict[str, str] = {
+    "Amp": "A", "Distortion": "D", "Dynamics": "Dy",
+    "EQ": "EQ", "Modulation": "M", "Delay": "Dl",
+    "Reverb": "Rv", "Cab": "C",
+}
+
+# Line 6 HX color scheme — matches hardware scribble strip and HX Edit
 _CAT_COLOR: dict[str, str] = {
-    "Amp":        "#c0392b",
-    "Distortion": "#e67e22",
-    "Dynamics":   "#2980b9",
-    "EQ":         "#8e44ad",
-    "Modulation": "#16a085",
-    "Delay":      "#2471a3",
-    "Reverb":     "#1a6b8a",
-    "Cab":        "#555555",
+    "Amp":        "#bb2222",   # red
+    "Distortion": "#c8930a",   # amber-yellow (Line 6 drive color)
+    "Dynamics":   "#b85c00",   # orange
+    "EQ":         "#7b2fbe",   # purple
+    "Modulation": "#3d4fb5",   # blue-indigo
+    "Delay":      "#1e8c45",   # green
+    "Reverb":     "#0e7a8c",   # cyan-teal
+    "Cab":        "#4a4a4a",   # dark gray
+}
+
+# Genre → color chips in result panel and catalog
+_GENRE_COLORS: dict[str, str] = {
+    "Clean":        "#2c6fad",
+    "Blues":        "#2d6a8a",
+    "Classic Rock": "#8a5c1e",
+    "Hard Rock":    "#8a2e1e",
+    "Metal":        "#3d1e5c",
+    "Fuzz":         "#6b1e4a",
+    "Funk":         "#1e6b4a",
+    "Jazz":         "#1e4a6b",
+    "Country":      "#7a5a1a",
+    "Ambient":      "#1e5a6b",
+    "Acoustic":     "#4a6b1e",
+    "Other":        "#444444",
 }
 
 # Snapshot pill colors — blue / purple / green for slots 0, 1, 2
 _SNAP_COLORS: tuple[str, ...] = ("#2c5f8a", "#5a3c82", "#2e6b4f")
+
+
+# ---------------------------------------------------------------------------
+# Block display helpers
+# ---------------------------------------------------------------------------
+
+def _model_subcategory(model_id: str) -> str:
+    """Derive a human-readable subcategory from the model_id prefix pattern."""
+    _PATTERNS: list[tuple[str, str]] = [
+        # Distortion subcats
+        ("Dist", "Fuzz",      "Fuzz"),
+        ("Dist", "Octave",    "Octave Fuzz"),
+        ("Dist", "Scream",    "Tube Screamer"),
+        ("Dist", "Arbitrator","Fuzz"),
+        ("Dist", "Vermin",    "Rat-style"),
+        ("Dist", "Kinky",     "Kink"),
+        ("Dist", "Stupor",    "Super OD"),
+        ("Dist", "Compulsive","OD"),
+        ("Dist", "Deranged",  "OD"),
+        # Modulation subcats
+        ("Mod",  "Chorus",    "Chorus"),
+        ("Mod",  "Flanger",   "Flanger"),
+        ("Mod",  "Phaser",    "Phaser"),
+        ("Mod",  "Tremolo",   "Tremolo"),
+        ("Mod",  "UniVibe",   "Uni-Vibe"),
+        ("Mod",  "Pitch",     "Pitch"),
+        ("Mod",  "Rotary",    "Rotary"),
+        ("Mod",  "Vibrato",   "Vibrato"),
+        # Reverb subcats
+        ("Reverb", "Hall",     "Hall"),
+        ("Reverb", "Room",     "Room"),
+        ("Reverb", "Plate",    "Plate"),
+        ("Reverb", "Spring",   "Spring"),
+        ("Reverb", "Shimmer",  "Shimmer"),
+        ("Reverb", "Cave",     "Cave"),
+        ("Reverb", "Glitz",    "Glitz"),
+        # Delay subcats
+        ("Delay", "Verb",      "Reverb Delay"),
+        ("Delay", "Tape",      "Tape Echo"),
+        ("Delay", "Multi",     "Multi-tap"),
+        ("Delay", "Transistor","Transistor"),
+        ("Delay", "Ping",      "Ping-Pong"),
+        ("Delay", "Cosmos",    "Cosmos"),
+        # Dynamics subcats
+        ("Dyn",  "Compulsive", "Compressor"),
+        ("Dyn",  "Kinky",      "Compressor"),
+        ("Dyn",  "Noise",      "Noise Gate"),
+        ("Dyn",  "Hard",       "Gate"),
+    ]
+    mid = model_id  # e.g. "HD2_DistArbitratorFuzz"
+    # Strip the "HD2_" prefix
+    body = mid[4:] if mid.startswith("HD2_") else mid
+    for prefix, keyword, label in _PATTERNS:
+        if body.startswith(prefix) and keyword.lower() in body.lower():
+            return label
+    return ""
+
+
+_KEY_PARAM_PRIORITY: dict[str, list[str]] = {
+    "Amp":        ["Drive", "Bass", "Mid", "Treble"],
+    "Distortion": ["Drive", "Tone", "Level"],
+    "Delay":      ["Time", "Feedback", "Mix"],
+    "Reverb":     ["Decay", "Mix"],
+    "Modulation": ["Depth", "Rate", "Mix"],
+    "EQ":         ["Low", "Mid", "High"],
+    "Dynamics":   ["Thresh", "Ratio", "Attack"],
+    "Cab":        [],
+}
+
+
+def _key_params_summary(blk: dict) -> str:
+    """Return a 1-2 param summary string like 'Drive 65%  Mix 20%'."""
+    params = blk.get("params", {})
+    keys   = _KEY_PARAM_PRIORITY.get(blk.get("category", ""), [])
+    parts: list[str] = []
+    for k in keys[:2]:
+        if k in params:
+            v = params[k]
+            if isinstance(v, float) and 0.0 <= v <= 1.0:
+                parts.append(f"{k} {int(v * 100)}%")
+            else:
+                parts.append(f"{k} {v}")
+    return "  ".join(parts)
+
+
+class _Tooltip:
+    """Lightweight hover tooltip shown near the cursor over any widget."""
+
+    _DELAY_MS = 600  # milliseconds before tooltip appears
+
+    def __init__(self, widget: ctk.CTkBaseClass, lines: list[str]) -> None:
+        self._widget  = widget
+        self._lines   = lines
+        self._win: "ctk.CTkToplevel | None" = None
+        self._after_id: str | None = None
+        widget.bind("<Enter>", self._schedule, add="+")
+        widget.bind("<Leave>", self._cancel,   add="+")
+        widget.bind("<ButtonPress>", self._cancel, add="+")
+
+    def _schedule(self, event) -> None:
+        self._cancel(event)
+        self._after_id = self._widget.after(self._DELAY_MS, self._show)
+
+    def _cancel(self, event=None) -> None:
+        if self._after_id:
+            self._widget.after_cancel(self._after_id)
+            self._after_id = None
+        if self._win and self._win.winfo_exists():
+            self._win.destroy()
+        self._win = None
+
+    def _show(self) -> None:
+        if self._win and self._win.winfo_exists():
+            return
+        try:
+            x = self._widget.winfo_rootx() + 10
+            y = self._widget.winfo_rooty() + self._widget.winfo_height() + 4
+            tip = ctk.CTkToplevel(self._widget)
+            tip.wm_overrideredirect(True)
+            tip.wm_geometry(f"+{x}+{y}")
+            tip.attributes("-topmost", True)
+            tip.lift()
+            frame = ctk.CTkFrame(tip, fg_color="#1a1a2e", corner_radius=6,
+                                 border_width=1, border_color="#3a3a5a")
+            frame.pack(padx=1, pady=1)
+            for i, line in enumerate(self._lines):
+                ctk.CTkLabel(
+                    frame, text=line,
+                    font=ctk.CTkFont(
+                        family=_UI_FONT_FAMILY,
+                        size=10,
+                        weight="bold" if i == 0 else "normal",
+                    ),
+                    text_color=_TEXT_BRIGHT if i == 0 else _TEXT_DIM,
+                    anchor="w",
+                ).pack(padx=8, pady=(5 if i == 0 else 0, 5 if i == len(self._lines) - 1 else 2),
+                       fill="x")
+            self._win = tip
+        except Exception:
+            pass
 
 
 # ---------------------------------------------------------------------------
@@ -1053,13 +1217,25 @@ class HLXWorkspacePanel(ctk.CTkFrame):
         ctk.CTkFrame(rf, height=1, fg_color=_BORDER_DIM).pack(
             fill="x", padx=0, pady=(0, 8))
 
-        # Preset name + description
+        # Preset name + genre chip row
+        name_row = ctk.CTkFrame(rf, fg_color="transparent")
+        name_row.pack(fill="x", padx=12, pady=(4, 0))
         ctk.CTkLabel(
-            rf,
+            name_row,
             text=result.preset_name,
             font=ctk.CTkFont(size=15, weight="bold"),
             text_color=_TEXT_BRIGHT, anchor="w",
-        ).pack(fill="x", padx=12, pady=(4, 0))
+        ).pack(side="left")
+
+        genre = getattr(result, "genre", "Other") or "Other"
+        genre_color = _GENRE_COLORS.get(genre, _GENRE_COLORS["Other"])
+        genre_chip = ctk.CTkFrame(name_row, fg_color=genre_color, corner_radius=4)
+        genre_chip.pack(side="left", padx=(10, 0))
+        ctk.CTkLabel(
+            genre_chip, text=genre,
+            font=ctk.CTkFont(size=9, weight="bold"),
+            text_color="#ffffff",
+        ).pack(padx=7, pady=(3, 3))
 
         if result.description:
             ctk.CTkLabel(
@@ -1083,37 +1259,73 @@ class HLXWorkspacePanel(ctk.CTkFrame):
         chain_outer.pack(fill="x", padx=12, pady=(0, 6))
 
         for i, blk in enumerate(result.blocks):
-            cat   = blk.get("category", "")
-            color = _CAT_COLOR.get(cat, "#4A90D9")
-            badge = _CAT_BADGE.get(cat, "•")
+            cat      = blk.get("category", "")
+            color    = _CAT_COLOR.get(cat, "#4A90D9")
+            icon_img = get_icon(_CAT_ICON.get(cat, ""), size=(20, 20))
+            subcat   = _model_subcategory(blk.get("model_id", ""))
+            summary  = _key_params_summary(blk)
 
-            card = ctk.CTkFrame(chain_outer, fg_color=color,
-                                corner_radius=6)
+            card = ctk.CTkFrame(chain_outer, fg_color=color, corner_radius=6)
             card.pack(side="left", padx=(0, 4))
 
-            # Emoji — large, centered
-            ctk.CTkLabel(
-                card,
-                text=badge,
-                font=ctk.CTkFont(size=16),
-                text_color="#ffffff",
-            ).pack(padx=10, pady=(8, 1))
+            # Category icon (CTkImage) or single-letter fallback
+            if icon_img is not None:
+                ctk.CTkLabel(
+                    card, image=icon_img, text="",
+                ).pack(padx=10, pady=(8, 1))
+            else:
+                ctk.CTkLabel(
+                    card,
+                    text=_CAT_ICON_FALLBACK.get(cat, "?"),
+                    font=ctk.CTkFont(size=13, weight="bold"),
+                    text_color="#ffffff",
+                ).pack(padx=10, pady=(8, 1))
 
             # Block name — bold
             ctk.CTkLabel(
                 card,
                 text=blk.get("name", blk.get("model_id", "?")),
-                font=ctk.CTkFont(size=10, weight="bold"),
+                font=ctk.CTkFont(family=_UI_FONT_FAMILY, size=10, weight="bold"),
                 text_color="#ffffff",
             ).pack(padx=8, pady=(0, 1))
 
-            # Category — small, muted
+            # Category + optional subcategory — small, muted
+            cat_text = f"{cat} › {subcat}" if subcat else cat
             ctk.CTkLabel(
-                card,
-                text=cat,
-                font=ctk.CTkFont(size=9),
+                card, text=cat_text,
+                font=ctk.CTkFont(family=_UI_FONT_FAMILY, size=8),
                 text_color="#d9d9d9",
-            ).pack(padx=8, pady=(0, 8))
+            ).pack(padx=8, pady=(0, 1))
+
+            # Key params summary — tiny, dim
+            if summary:
+                ctk.CTkLabel(
+                    card, text=summary,
+                    font=ctk.CTkFont(family=_UI_FONT_FAMILY, size=7),
+                    text_color="#bbbbbb",
+                ).pack(padx=8, pady=(0, 6))
+            else:
+                ctk.CTkFrame(card, height=6, fg_color="transparent").pack()
+
+            # Hover tooltip with full model info + all params
+            tooltip_lines = [blk.get("name", blk.get("model_id", "?"))]
+            if subcat:
+                tooltip_lines.append(f"{cat} › {subcat}")
+            else:
+                tooltip_lines.append(cat)
+            params = blk.get("params", {})
+            if params:
+                tooltip_lines.append("")
+                for pk, pv in list(params.items())[:6]:
+                    if isinstance(pv, float) and 0.0 <= pv <= 1.0:
+                        tooltip_lines.append(f"{pk}: {int(pv*100)}%")
+                    else:
+                        tooltip_lines.append(f"{pk}: {pv}")
+            expl = blk.get("explanation", "")
+            if expl:
+                tooltip_lines.append("")
+                tooltip_lines.append(expl[:80])
+            _Tooltip(card, tooltip_lines)
 
             if i < len(result.blocks) - 1:
                 ctk.CTkLabel(
@@ -1667,6 +1879,7 @@ class PresetCatalogPanel(ctk.CTkFrame):
         created   = entry.get("created", "")
         blocks    = entry.get("blocks", [])
         rationale = entry.get("signal_chain_rationale", "")
+        genre     = entry.get("genre", "")
 
         # Outer card with border
         first_cat   = blocks[0].get("category", "") if blocks else ""
@@ -1700,6 +1913,16 @@ class PresetCatalogPanel(ctk.CTkFrame):
                 top, text=date_str,
                 font=ctk.CTkFont(size=10), text_color=_TEXT_DIM,
             ).pack(side="left", padx=(8, 0))
+
+        if genre:
+            gc = _GENRE_COLORS.get(genre, _GENRE_COLORS["Other"])
+            gchip = ctk.CTkFrame(top, fg_color=gc, corner_radius=4)
+            gchip.pack(side="left", padx=(8, 0))
+            ctk.CTkLabel(
+                gchip, text=genre,
+                font=ctk.CTkFont(size=8, weight="bold"),
+                text_color="#ffffff",
+            ).pack(padx=6, pady=(2, 2))
 
         icon_btn(
             top, "trash", "", size=(14, 14), width=30, height=24,
@@ -1738,17 +1961,26 @@ class PresetCatalogPanel(ctk.CTkFrame):
             for i, blk in enumerate(blocks):
                 cat      = blk.get("category", "")
                 color    = _CAT_COLOR.get(cat, "#4A90D9")
-                badge    = _CAT_BADGE.get(cat, "•")
+                icon_img = get_icon(_CAT_ICON.get(cat, ""), size=(12, 12))
                 blk_name = blk.get("name", blk.get("model_id", "?"))
 
                 chip = ctk.CTkFrame(chain, fg_color=color, corner_radius=4)
                 chip.pack(side="left", padx=(0, 2))
+
+                chip_inner = ctk.CTkFrame(chip, fg_color="transparent")
+                chip_inner.pack(side="left", padx=6, pady=(3, 3))
+
+                if icon_img is not None:
+                    ctk.CTkLabel(
+                        chip_inner, image=icon_img, text="",
+                    ).pack(side="left", padx=(0, 3))
+
                 ctk.CTkLabel(
-                    chip,
-                    text=f"{badge} {blk_name}",
+                    chip_inner,
+                    text=blk_name,
                     font=ctk.CTkFont(size=9, weight="bold"),
                     text_color="#ffffff",
-                ).pack(padx=6, pady=(3, 3))
+                ).pack(side="left")
 
                 if i < len(blocks) - 1:
                     ctk.CTkLabel(
