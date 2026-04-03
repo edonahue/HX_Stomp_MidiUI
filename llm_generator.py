@@ -1,1 +1,1 @@
-CONTENT_PLACEHOLDER
+"""\nllm_generator.py\n\nHLX Generator — AI-powered .hlx preset builder for Line 6 HX Stomp / Helix.\n
