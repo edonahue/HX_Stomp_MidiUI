@@ -18,6 +18,8 @@ from pathlib import Path
 
 import customtkinter as ctk
 
+from _resource import resource_path
+
 try:
     from PIL import Image as _PilImage
     _PIL_OK = True
@@ -31,7 +33,7 @@ SM = (14, 14)   # status dots, small inline indicators
 MD = (18, 18)   # toolbar / dialog buttons  (default)
 LG = (20, 20)   # primary action buttons
 
-_ICON_DIR = Path(__file__).parent / "assets" / "icons"
+_ICON_DIR = resource_path("assets/icons")
 
 
 @functools.lru_cache(maxsize=None)

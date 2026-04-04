@@ -606,7 +606,12 @@ class SoundboardApp(ctk.CTk):
     def __init__(self, presets_file: str = "presets.json",
                  no_llm: bool = False):
         super().__init__()
-        self.title("HLX Generator — AI Preset Builder & MIDI Soundboard")
+        try:
+            from __version__ import VERSION as _ver
+            _title = f"HLX Generator v{_ver} — AI Preset Builder & MIDI Soundboard"
+        except ImportError:
+            _title = "HLX Generator — AI Preset Builder & MIDI Soundboard"
+        self.title(_title)
         self.minsize(700, 520)
 
         self._midi   = HXStompMidi()

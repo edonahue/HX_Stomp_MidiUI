@@ -22,6 +22,9 @@ from __future__ import annotations
 import argparse
 import sys
 
+from _resource import resource_path
+from __version__ import VERSION
+
 try:
     import soundboard_ui
     from midi_interface import HXStompMidi, _FS_CC
@@ -208,7 +211,7 @@ def _install_desktop() -> None:
     import subprocess
     from pathlib import Path
 
-    src_icon = Path(__file__).parent / "assets" / "icons" / "app-icon.png"
+    src_icon = resource_path("assets/icons/app-icon.png")
     if not src_icon.exists():
         print(f"ERROR: App icon not found at {src_icon}")
         sys.exit(1)

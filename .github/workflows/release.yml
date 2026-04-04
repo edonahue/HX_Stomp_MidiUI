@@ -1,0 +1,151 @@
+name: Release
+
+# Triggered by a version tag push: v1.2.3
+on:
+  push:
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+
+permissions:
+  contents: write   # needed to create GitHub Releases and upload assets
+
+jobs:
+  # ── 1. Build installers on each target platform ──────────────────────────
+  build:
+    name: Build — ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Linux x86_64 → .deb
+          - os: ubuntu-22.04
+            arch: amd64
+            artifact_glob: "dist/*.deb"
+
+          # macOS Intel → DMG
+          - os: macos-13
+            arch: x86_64
+            artifact_glob: "dist/*.dmg"
+
+          # macOS Apple Silicon → DMG
+          - os: macos-14
+            arch: arm64
+            artifact_glob: "dist/*.dmg"
+
+          # Windows x86_64 → NSIS .exe
+          - os: windows-latest
+            arch: x86_64
+            artifact_glob: "dist/*.exe"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── Python ─────────────────────────────────────────────────────────────
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      # ── System deps (Linux only — rtmidi needs ALSA/JACK headers) ─────────
+      - name: Install system dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libjack-dev dpkg
+
+      # ── Python deps ────────────────────────────────────────────────────────
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt pyinstaller
+
+      # ── Generate platform icons (best-effort; skip if Pillow issue) ────────
+      - name: Generate platform icons
+        run: python scripts/make_icons.py
+        continue-on-error: true
+
+      # ── PyInstaller build ──────────────────────────────────────────────────
+      - name: Build with PyInstaller
+        run: pyinstaller hlx_generator.spec
+
+      # ── Package for the platform ───────────────────────────────────────────
+      - name: Package release artifact
+        run: python build_release.py --arch ${{ matrix.arch }}
+        shell: bash
+
+      # ── Upload artifact to this workflow run ──────────────────────────────
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-${{ matrix.os }}-${{ matrix.arch }}
+          path: ${{ matrix.artifact_glob }}
+          if-no-files-found: error
+
+  # ── 2. Publish GitHub Release with all artifacts ─────────────────────────
+  publish:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Read version
+        id: version
+        run: |
+          python - <<'EOF'
+          import sys
+          sys.path.insert(0, ".")
+          from __version__ import VERSION
+          print(f"version={VERSION}")
+          EOF
+        shell: bash
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -lh release-artifacts/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "HLX Generator v${{ steps.version.outputs.version }}"
+          tag_name: ${{ github.ref_name }}
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          body: |
+            ## HLX Generator ${{ github.ref_name }}
+
+            ### Downloads
+
+            | Platform | File | Notes |
+            |---|---|---|
+            | Linux (Ubuntu 22.04+) | `hlx-generator_*_amd64.deb` | `sudo dpkg -i hlx-generator_*.deb` |
+            | macOS Intel (10.15+) | `HLXGenerator-*-x86_64.dmg` | Drag to Applications |
+            | macOS Apple Silicon | `HLXGenerator-*-arm64.dmg` | Drag to Applications |
+            | Windows 10/11 | `HLXGenerator-*-Setup.exe` | Run installer |
+
+            ### ⚠️ Unsigned app notice
+
+            These binaries are **not code-signed**.
+
+            **macOS:** On first launch, right-click the app → Open → Open anyway.
+            Or via Terminal: `xattr -d com.apple.quarantine /Applications/HLXGenerator.app`
+
+            **Windows:** Click "More info" → "Run anyway" in the SmartScreen dialog.
+
+            ### LLM API keys
+
+            The app supports Anthropic Claude, OpenAI GPT, and Google Gemini.
+            Configure your provider and API key from the ✨ Generate panel, or via:
+            ```
+            hlx-generator --llm-provider anthropic --api-key sk-...
+            ```
+
+            ### What's changed
+            See [CHANGELOG](https://github.com/edonahue/hlx-generator/blob/main/CHANGELOG.md) for details.
+          files: release-artifacts/**/*
