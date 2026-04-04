@@ -1,0 +1,39 @@
+name: Tests
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install system MIDI libraries (required by python-rtmidi)
+        run: sudo apt-get install -y libasound2-dev libjack-dev
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Validate PyInstaller spec syntax
+        run: python -c "import ast; ast.parse(open('hlx_generator.spec').read()); print('hlx_generator.spec: syntax OK')"
+
+      - name: Smoke test build_release --help
+        run: python build_release.py --help
+
+      - name: Run test suite (headless — no hardware or display required)
+        run: |
+          python -m unittest \
+            test_hlx_builder test_tone_manager test_midi_and_utils \
+            test_icon_manager test_resource test_build_release -v

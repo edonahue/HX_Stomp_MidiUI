@@ -1,0 +1,66 @@
+name: Draft Release
+
+# Creates/updates a draft GitHub Release on every push to main.
+# Publish it when ready by pushing a vX.Y.Z tag — that triggers release.yml
+# which builds all platform installers.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  draft:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history needed to find last tag
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Read version
+        id: ver
+        run: |
+          echo "version=$(python -c 'from __version__ import VERSION; print(VERSION)')" >> $GITHUB_OUTPUT
+
+      - name: Collect unreleased commits
+        id: commits
+        shell: bash
+        run: |
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+          if [ -n "$LAST_TAG" ]; then
+            LOG=$(git log "${LAST_TAG}..HEAD" --oneline --no-decorate)
+          else
+            LOG=$(git log --oneline --no-decorate | head -30)
+          fi
+          # Write to output, handling multi-line safely
+          {
+            echo "log<<EOF"
+            echo "$LOG"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create or update draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.version }}-draft
+          name: "HLX Generator v${{ steps.ver.outputs.version }} (draft)"
+          draft: true
+          prerelease: false
+          body: |
+            > **Draft** — when you're ready to ship, bump `VERSION` in `__version__.py`,
+            > update `CHANGELOG.md`, merge to `main`, then push a `vX.Y.Z` tag.
+            > The [release workflow](.github/workflows/release.yml) builds all installers automatically.
+
+            ## Changes since last release
+
+            ```
+            ${{ steps.commits.outputs.log }}
+            ```
