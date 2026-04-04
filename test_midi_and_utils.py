@@ -616,6 +616,91 @@ class TestGetProvider(unittest.TestCase):
 
 
 # ===========================================================================
+# Group M2: OllamaProvider.list_models
+# ===========================================================================
+
+class TestOllamaListModels(unittest.TestCase):
+    """Tests for OllamaProvider.list_models() — no real network required."""
+
+    def test_returns_sorted_model_names_on_success(self):
+        """A valid /api/tags response returns sorted model name strings."""
+        import io
+        import urllib.request
+        tags_response = json.dumps({
+            "models": [
+                {"name": "mistral:latest"},
+                {"name": "llama3.2:latest"},
+                {"name": "codellama:7b"},
+            ]
+        }).encode()
+
+        class _FakeResp:
+            def read(self): return tags_response
+            def __enter__(self): return self
+            def __exit__(self, *_): pass
+
+        with patch("urllib.request.urlopen", return_value=_FakeResp()):
+            models = OllamaProvider.list_models("http://localhost:11434")
+
+        self.assertEqual(models, ["codellama:7b", "llama3.2:latest", "mistral:latest"])
+
+    def test_returns_empty_list_on_connection_failure(self):
+        """A URLError (server not running) returns [] without raising."""
+        import urllib.error
+        with patch("urllib.request.urlopen",
+                   side_effect=urllib.error.URLError("Connection refused")):
+            models = OllamaProvider.list_models("http://localhost:11434")
+        self.assertEqual(models, [])
+
+    def test_returns_empty_list_on_bad_json(self):
+        """Malformed JSON from the server returns [] without raising."""
+        class _BadResp:
+            def read(self): return b"not json"
+            def __enter__(self): return self
+            def __exit__(self, *_): pass
+
+        with patch("urllib.request.urlopen", return_value=_BadResp()):
+            models = OllamaProvider.list_models()
+        self.assertEqual(models, [])
+
+    def test_uses_default_base_url_when_empty(self):
+        """Empty base_url argument falls back to http://localhost:11434."""
+        captured = {}
+
+        class _EmptyResp:
+            def read(self): return json.dumps({"models": []}).encode()
+            def __enter__(self): return self
+            def __exit__(self, *_): pass
+
+        def _fake_urlopen(req, timeout=5):
+            captured["url"] = req.full_url
+            return _EmptyResp()
+
+        with patch("urllib.request.urlopen", side_effect=_fake_urlopen):
+            OllamaProvider.list_models("")
+
+        self.assertIn("localhost:11434", captured["url"])
+
+    def test_custom_base_url_used(self):
+        """A non-default base_url is passed through to the request."""
+        captured = {}
+
+        class _EmptyResp:
+            def read(self): return json.dumps({"models": []}).encode()
+            def __enter__(self): return self
+            def __exit__(self, *_): pass
+
+        def _fake_urlopen(req, timeout=5):
+            captured["url"] = req.full_url
+            return _EmptyResp()
+
+        with patch("urllib.request.urlopen", side_effect=_fake_urlopen):
+            OllamaProvider.list_models("http://192.168.1.10:11434")
+
+        self.assertIn("192.168.1.10:11434", captured["url"])
+
+
+# ===========================================================================
 # Group N: Tone search filter logic
 # ===========================================================================
 

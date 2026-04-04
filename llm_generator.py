@@ -270,15 +270,31 @@ class OllamaProvider(LLMProvider):
             url, data=payload,
             headers={"Content-Type": "application/json"}, method="POST")
         try:
-            with urllib.request.urlopen(req, timeout=30) as resp:
+            with urllib.request.urlopen(req, timeout=120) as resp:
                 data = json.loads(resp.read())
-                return data["message"]["content"]
+            if "error" in data:
+                raise LLMGenerationError(f"Ollama error: {data['error']}")
+            return data["message"]["content"]
+        except LLMGenerationError:
+            raise
         except urllib.error.URLError as exc:
             raise LLMGenerationError(
                 f"Ollama not reachable at {base}. Is it running?"
             ) from exc
         except (KeyError, json.JSONDecodeError) as exc:
             raise LLMGenerationError(f"Unexpected Ollama response: {exc}") from exc
+
+    @classmethod
+    def list_models(cls, base_url: str = "") -> list[str]:
+        """Return model names available on this Ollama server, or [] on failure."""
+        base = (base_url or "http://localhost:11434").rstrip("/")
+        req  = urllib.request.Request(f"{base}/api/tags")
+        try:
+            with urllib.request.urlopen(req, timeout=5) as resp:
+                data = json.loads(resp.read())
+                return sorted(m["name"] for m in data.get("models", []))
+        except Exception:
+            return []
 
 
 class GeminiProvider(LLMProvider):
@@ -415,6 +431,13 @@ class ProviderConfigDialog(ctk.CTkToplevel):
         row += 1
 
         self._fields: dict[str, tk.StringVar] = {}
+        self._is_ollama         = (provider_name == "ollama")
+        self._model_menu        = None   # CTkOptionMenu (Ollama only)
+        self._model_menu_var    = None   # StringVar for dropdown
+        self._custom_model_var  = None   # StringVar for manual override entry
+        self._status_lbl        = None   # connection status label (Ollama only)
+        self._refresh_btn       = None   # Refresh button (Ollama only)
+        self._refresh_after_id  = None   # debounce after() id
 
         _KEY_SOURCES = {
             "anthropic": "Get a key at console.anthropic.com → API Keys",
@@ -433,15 +456,36 @@ class ProviderConfigDialog(ctk.CTkToplevel):
                 row=row, column=1, **pad)
             row += 1
         else:
+            # Base URL row: entry + Refresh button (Ollama-specific)
             ctk.CTkLabel(self, text="Base URL", anchor="w", width=90).grid(
                 row=row, column=0, sticky="w", **pad)
+            url_frame = ctk.CTkFrame(self, fg_color="transparent")
+            url_frame.grid(row=row, column=1, sticky="w", **pad)
             var = tk.StringVar(
                 value=self._cfg.get(f"{provider_name}_base_url",
                                     "http://localhost:11434"))
             self._fields["base_url"] = var
-            ctk.CTkEntry(self, textvariable=var, width=280).grid(
-                row=row, column=1, **pad)
+            ctk.CTkEntry(url_frame, textvariable=var, width=210).pack(
+                side="left", padx=(0, 6))
+            self._refresh_btn = icon_btn(
+                url_frame, "arrows-clockwise", "Refresh", width=80,
+                command=self._refresh_ollama,
+            )
+            self._refresh_btn.pack(side="left")
             row += 1
+
+            # Status label (shows connection result after refresh)
+            self._status_lbl = ctk.CTkLabel(
+                self, text="",
+                font=ctk.CTkFont(size=10), text_color=_TEXT_DIM,
+                anchor="w",
+            )
+            self._status_lbl.grid(row=row, column=0, columnspan=2,
+                                   sticky="w", padx=12, pady=(0, 2))
+            row += 1
+
+            # Debounce refresh on URL edits
+            var.trace_add("write", self._on_base_url_changed)
 
         hint = _KEY_SOURCES.get(provider_name, "")
         if hint:
@@ -455,12 +499,38 @@ class ProviderConfigDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(self, text="Model", anchor="w", width=90).grid(
             row=row, column=0, sticky="w", **pad)
-        var = tk.StringVar(
-            value=self._cfg.get(f"{provider_name}_model", cls.default_model))
-        self._fields["model"] = var
-        ctk.CTkEntry(self, textvariable=var, width=280).grid(
-            row=row, column=1, **pad)
-        row += 1
+
+        if self._is_ollama:
+            # Dropdown for discovered models
+            self._model_menu_var = tk.StringVar(
+                value=self._cfg.get(f"{provider_name}_model", cls.default_model))
+            self._model_menu = ctk.CTkOptionMenu(
+                self,
+                variable=self._model_menu_var,
+                values=[self._model_menu_var.get()],
+                width=280,
+            )
+            self._model_menu.grid(row=row, column=1, **pad)
+            row += 1
+
+            # Manual override entry (for models not yet pulled / not in list)
+            ctk.CTkLabel(self, text="", anchor="w", width=90).grid(
+                row=row, column=0, sticky="w", padx=12, pady=(0, 2))
+            self._custom_model_var = tk.StringVar()
+            ctk.CTkEntry(
+                self,
+                textvariable=self._custom_model_var,
+                placeholder_text="Or type a custom model name…",
+                width=280,
+            ).grid(row=row, column=1, sticky="w", padx=12, pady=(0, 4))
+            row += 1
+        else:
+            var = tk.StringVar(
+                value=self._cfg.get(f"{provider_name}_model", cls.default_model))
+            self._fields["model"] = var
+            ctk.CTkEntry(self, textvariable=var, width=280).grid(
+                row=row, column=1, **pad)
+            row += 1
 
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
         btn_frame.grid(row=row, column=0, columnspan=2, pady=12)
@@ -471,6 +541,60 @@ class ProviderConfigDialog(ctk.CTkToplevel):
             fg_color="transparent", border_width=1, text_color=_TEXT_BRIGHT,
             command=self.destroy,
         ).pack(side="left", padx=6)
+
+        # Auto-refresh model list on open for Ollama
+        if self._is_ollama:
+            self.after(50, self._refresh_ollama)
+
+    def _on_base_url_changed(self, *_) -> None:
+        """Debounce: refresh model list 600ms after the user stops typing the URL."""
+        if self._refresh_after_id is not None:
+            try:
+                self.after_cancel(self._refresh_after_id)
+            except Exception:
+                pass
+        self._refresh_after_id = self.after(600, self._refresh_ollama)
+
+    def _refresh_ollama(self) -> None:
+        """Fetch available models from the Ollama server in a background thread."""
+        if self._refresh_btn is None or self._status_lbl is None:
+            return
+        self._refresh_btn.configure(state="disabled")
+        self._status_lbl.configure(text="Checking…", text_color=_TEXT_DIM)
+        base_url = self._fields.get("base_url", tk.StringVar()).get().strip()
+        import threading as _threading
+        _threading.Thread(
+            target=self._refresh_ollama_worker,
+            args=(base_url,),
+            daemon=True,
+        ).start()
+
+    def _refresh_ollama_worker(self, base_url: str) -> None:
+        models = OllamaProvider.list_models(base_url)
+        self.after(0, lambda: self._apply_ollama_models(models))
+
+    def _apply_ollama_models(self, models: list) -> None:
+        if self._refresh_btn is None or self._status_lbl is None:
+            return
+        self._refresh_btn.configure(state="normal")
+        if models:
+            self._status_lbl.configure(
+                text=f"● Connected — {len(models)} model{'s' if len(models) != 1 else ''} found",
+                text_color="#4caf50",
+            )
+            # Preserve current selection if still in list, else default to first
+            current = self._model_menu_var.get() if self._model_menu_var else ""
+            if current not in models:
+                current = models[0]
+            if self._model_menu is not None:
+                self._model_menu.configure(values=models)
+            if self._model_menu_var is not None:
+                self._model_menu_var.set(current)
+        else:
+            self._status_lbl.configure(
+                text="✕ Not reachable — is Ollama running?",
+                text_color=_COL_DISC,
+            )
 
     def _save(self) -> None:
         from tkinter import messagebox as _mb
@@ -486,6 +610,12 @@ class ProviderConfigDialog(ctk.CTkToplevel):
                     parent=self,
                 ):
                     return
+        # Resolve the model value for Ollama: prefer manual entry, fall back to dropdown
+        if self._is_ollama:
+            custom = self._custom_model_var.get().strip() if self._custom_model_var else ""
+            model  = custom or (self._model_menu_var.get().strip()
+                                if self._model_menu_var else "")
+            self._fields["model"] = tk.StringVar(value=model)
         for key, var in self._fields.items():
             self._cfg[f"{name}_{key}"] = var.get().strip()
         save_config(self._cfg)
