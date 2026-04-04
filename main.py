@@ -190,6 +190,14 @@ class MockHXStompMidi:
     def looper_enabled(self, on: bool) -> None:
         print(f"[MockMIDI] Looper Block → {'ON' if on else 'OFF'}")
 
+    # Device sync ------------------------------------------------------
+
+    def start_listening(self, callback, input_port_name=None) -> None:
+        pass  # no-op; mock doesn't receive MIDI from itself
+
+    def stop_listening(self) -> None:
+        pass
+
     def __enter__(self):  return self
     def __exit__(self, *_): self.disconnect()
 
