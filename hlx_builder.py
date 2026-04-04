@@ -940,6 +940,83 @@ def generate_hlx_preset(description: str, provider,
     )
 
 
+def refine_hlx_preset(
+    prior: PresetResult,
+    refinement_request: str,
+    provider,
+) -> PresetResult:
+    """
+    Refine an existing preset based on a user request ("make it darker", etc.).
+
+    Injects the prior preset's JSON structure and block list into the user
+    message so the LLM has full context.  Uses the same system prompt (catalog,
+    schema, parameter ranges) as generate_hlx_preset(), then routes the
+    response through the same parse/validate pipeline.
+
+    Retries once on JSON parse failure.
+    Raises LLMGenerationError on API failure or persistent parse errors.
+    """
+    from llm_generator import LLMGenerationError  # lazy import
+
+    # Reconstruct a compact JSON representation of the prior preset for context.
+    # We pull per-block params from hlx_dict so the LLM can see current values.
+    dsp_blocks = (
+        prior.hlx_dict.get("data", {})
+        .get("tone", {})
+        .get("dsp0", {})
+    )
+    prior_blocks_json = []
+    for i, b in enumerate(prior.blocks):
+        block_key = f"block{i}"
+        raw_params = dsp_blocks.get(block_key, {}).get("params", {})
+        prior_blocks_json.append({
+            "model_id": b["model_id"],
+            "position": i,
+            "enabled": b.get("enabled", True),
+            "params": raw_params,
+        })
+    prior_context = json.dumps(
+        {
+            "preset_name": prior.preset_name,
+            "description": prior.description,
+            "genre": prior.genre,
+            "blocks": prior_blocks_json,
+            "snapshots": prior.snapshots,
+            "signal_chain_rationale": prior.signal_chain_rationale,
+        },
+        indent=2,
+    )
+
+    system_prompt, _ = build_hlx_prompt(prior.prompt)  # reuse catalog + schema
+    base_msg = (
+        f"Here is an existing HX Stomp preset:\n\n```json\n{prior_context}\n```\n\n"
+        f"The user wants to refine it with this request:\n\"{refinement_request}\"\n\n"
+        "Adjust the preset to satisfy the request. Keep blocks that are working well; "
+        "swap models or change parameters as needed. "
+        "Return ONLY a JSON object with the same schema as above. "
+        "Use ONLY model_ids from the catalog."
+    )
+
+    last_exc: Exception | None = None
+    for attempt in range(2):
+        user_msg = base_msg
+        if attempt > 0 and last_exc is not None:
+            user_msg = (
+                f"{base_msg}\n\n"
+                f"Note: previous attempt failed ({last_exc}). "
+                "Return ONLY a JSON object — no markdown, no prose."
+            )
+        raw = provider.complete(system_prompt, user_msg, max_tokens=_HLX_MAX_TOKENS)
+        try:
+            return parse_hlx_response(raw, prior.prompt)
+        except LLMGenerationError as exc:
+            last_exc = exc
+
+    raise LLMGenerationError(
+        f"Could not parse refinement response: {last_exc}"
+    )
+
+
 # Three subtly different interpretive hints used by generate_variants().
 _VARIANT_HINTS = [
     "",                                                # Option A — default

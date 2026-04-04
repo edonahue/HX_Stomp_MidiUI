@@ -366,7 +366,7 @@ def generate_tone(description: str, provider: LLMProvider) -> Tone:
             return Tone(
                 name     = str(data["name"])[:20],
                 preset   = 0,
-                snapshot = max(0, min(2, int(data.get("snapshot", 0)))),
+                snapshot = max(0, min(7, int(data.get("snapshot", 0)))),
                 bank_msb = 0,
                 bank_lsb = 0,
                 color    = str(data.get("color", "#4A90D9")),
@@ -937,6 +937,8 @@ class HLXWorkspacePanel(ctk.CTkFrame):
         self._loading         = False
         self._result          = None
         self._result_frame: "ctk.CTkFrame | None" = None
+        self._refine_entry    = None  # created inside _build_result_panel
+        self._refine_btn      = None
 
         if no_llm:
             self._build_no_llm_notice()
@@ -1142,6 +1144,8 @@ class HLXWorkspacePanel(ctk.CTkFrame):
         if loading:
             self._gen_btn.configure(state="disabled", text="Generating…")
             self._variants_btn.configure(state="disabled")
+            if self._refine_btn is not None:
+                self._refine_btn.configure(state="disabled")
             self._progress.pack(fill="x", padx=14, pady=(0, 4),
                                  before=self._status_lbl)
             self._progress.start()
@@ -1150,6 +1154,8 @@ class HLXWorkspacePanel(ctk.CTkFrame):
             self._progress.pack_forget()
             self._gen_btn.configure(state="normal", text="  Generate Preset")
             self._variants_btn.configure(state="normal")
+            if self._refine_btn is not None:
+                self._refine_btn.configure(state="normal")
 
     def _set_loading_variants(self, loading: bool) -> None:
         if loading:
@@ -1491,6 +1497,60 @@ class HLXWorkspacePanel(ctk.CTkFrame):
             fg_color="transparent", border_width=1, text_color=_TEXT_DIM,
             command=self._clear_result,
         ).pack(side="left", padx=6)
+
+        # ── Refine strip ──────────────────────────────────────────────
+        ctk.CTkFrame(rf, height=1, fg_color=_BORDER_DIM).pack(
+            fill="x", padx=0, pady=(0, 0))
+        refine_frame = ctk.CTkFrame(rf, fg_color="transparent")
+        refine_frame.pack(fill="x", padx=12, pady=(6, 8))
+        ctk.CTkLabel(
+            refine_frame, text="Refine",
+            font=ctk.CTkFont(size=10, weight="bold"),
+            text_color=_TEXT_DIM,
+        ).pack(side="left", padx=(0, 6))
+        self._refine_entry = ctk.CTkEntry(
+            refine_frame,
+            placeholder_text='e.g. "make it darker", "add more reverb"',
+            font=ctk.CTkFont(size=11),
+            fg_color=_BG_CARD,
+            border_color=_BORDER_DIM,
+            text_color=_TEXT_BRIGHT,
+            width=280,
+        )
+        self._refine_entry.pack(side="left", padx=(0, 6))
+        self._refine_entry.bind("<Return>", lambda _e: self._start_refine())
+        self._refine_btn = icon_btn(
+            refine_frame, "arrows-clockwise", "Refine", width=90,
+            command=self._start_refine,
+        )
+        self._refine_btn.pack(side="left")
+
+    def _start_refine(self) -> None:
+        if self._result is None:
+            return
+        request = self._refine_entry.get().strip()
+        if not request:
+            return
+        prior = self._result
+        self._refine_entry.delete(0, "end")
+        if self._result_frame is not None:
+            self._result_frame.destroy()
+            self._result_frame = None
+        self._result = None
+        self._set_loading(True)
+        import threading as _threading
+        _threading.Thread(
+            target=self._refine_worker, args=(prior, request), daemon=True,
+        ).start()
+
+    def _refine_worker(self, prior, request: str) -> None:
+        from hlx_builder import refine_hlx_preset
+        try:
+            provider = get_provider(self._cfg)
+            result   = refine_hlx_preset(prior, request, provider)
+            self.after(0, lambda: self._on_result(result))
+        except Exception as exc:  # noqa: BLE001
+            self.after(0, lambda: self._on_error(str(exc)))
 
     def _build_variants_panel(self, results: list) -> None:
         """Build a tabbed panel showing Option A / B / C variants."""

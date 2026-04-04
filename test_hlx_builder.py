@@ -51,6 +51,7 @@ from hlx_builder import (
     parse_hlx_response,
     save_hlx,
     generate_hlx_preset,
+    refine_hlx_preset,
     PresetCatalog,
     PresetResult,
 )
@@ -959,6 +960,83 @@ class TestCatDicts(unittest.TestCase):
     def test_no_overlap_between_cat_color_and_genre_colors(self):
         # They're separate concerns — verifying they're distinct dicts
         self.assertIsNot(_CAT_COLOR, _GENRE_COLORS)
+
+
+# ---------------------------------------------------------------------------
+# Group 20 — refine_hlx_preset
+# ---------------------------------------------------------------------------
+
+class _RecordingProvider:
+    """Provider that records calls and returns configurable responses."""
+    def __init__(self, responses):
+        self._responses = list(responses)
+        self.calls: list[tuple[str, str]] = []
+
+    def complete(self, system: str, user: str, max_tokens: int = 1500) -> str:
+        self.calls.append((system, user))
+        if not self._responses:
+            raise LLMGenerationError("No more stub responses")
+        return self._responses.pop(0)
+
+
+class TestRefinement(unittest.TestCase):
+
+    def _make_prior(self) -> PresetResult:
+        """Generate a valid PresetResult from the stub provider to use as prior."""
+        return generate_hlx_preset("clean Fender tone", StubProvider())
+
+    def test_returns_preset_result(self):
+        """refine_hlx_preset() returns a valid PresetResult."""
+        prior    = self._make_prior()
+        provider = _RecordingProvider([_STUB_RESPONSE])
+        result   = refine_hlx_preset(prior, "make it darker", provider)
+        self.assertIsInstance(result, PresetResult)
+
+    def test_prior_context_injected_in_user_message(self):
+        """The prior preset JSON is included in the user message sent to the LLM."""
+        prior    = self._make_prior()
+        provider = _RecordingProvider([_STUB_RESPONSE])
+        refine_hlx_preset(prior, "add more reverb", provider)
+
+        self.assertEqual(len(provider.calls), 1)
+        _system_msg, user_msg = provider.calls[0]
+        # The prior preset name should appear in the injected context
+        self.assertIn(prior.preset_name, user_msg)
+        # The refinement request should appear verbatim
+        self.assertIn("add more reverb", user_msg)
+
+    def test_retries_once_on_bad_json(self):
+        """One bad JSON response triggers a retry; second good response succeeds."""
+        prior    = self._make_prior()
+        provider = _RecordingProvider(["not valid json!!!", _STUB_RESPONSE])
+        result   = refine_hlx_preset(prior, "add gain", provider)
+        self.assertIsInstance(result, PresetResult)
+        self.assertEqual(len(provider.calls), 2)
+
+    def test_raises_on_persistent_failure(self):
+        """Two consecutive bad responses raise LLMGenerationError."""
+        prior    = self._make_prior()
+        provider = _RecordingProvider(["bad json", "still bad json"])
+        with self.assertRaises(LLMGenerationError):
+            refine_hlx_preset(prior, "anything", provider)
+
+    def test_system_prompt_contains_catalog(self):
+        """The same catalog-injected system prompt is used for refinement."""
+        prior    = self._make_prior()
+        provider = _RecordingProvider([_STUB_RESPONSE])
+        refine_hlx_preset(prior, "brighter tone", provider)
+
+        _system_msg, _user_msg = provider.calls[0]
+        # Catalog contains known model IDs
+        self.assertIn(_AMP_ID, _system_msg)
+
+    def test_refinement_preserves_original_prompt(self):
+        """The refined PresetResult carries the original description as prompt."""
+        prior    = self._make_prior()
+        provider = _RecordingProvider([_STUB_RESPONSE])
+        result   = refine_hlx_preset(prior, "make it warmer", provider)
+        # prompt should be the original description, not the refinement request
+        self.assertEqual(result.prompt, prior.prompt)
 
 
 if __name__ == "__main__":
