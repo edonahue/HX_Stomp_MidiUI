@@ -5,20 +5,30 @@ Modern dark-theme soundboard UI for the HX Stomp, built with customtkinter.
 
 Layout
 ------
-  Menu bar  : File | MIDI | Tones
-  Toolbar   : ⊕ Add  ✏ Edit  🗑 Remove  ↺ Reload
-  Main area : Responsive CTkScrollableFrame grid of tone cards grouped by category
-  Status bar: Connection indicator pill + active tone label
+  Menu bar  : File | MIDI | Tones | View | Help
+  Tabs      : 🎸 HLX Generator (default) | 🎵 Soundboard
+  HLX tab   : AI preset workspace (description → signal chain → .hlx) + past presets
+  Board tab : Responsive tone-card grid, live controls, status bar
 """
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
+import time
 import tkinter as tk
+import tkinter.font as _tkfont
+from pathlib import Path
 from tkinter import colorchooser, messagebox
 from typing import Optional
 
 import customtkinter as ctk
 
+from icon_manager import get_icon, icon_btn, MD, LG
+from llm_generator import (GeneratePresetDialog, GenerateToneDialog,
+                            PresetCatalogDialog, HLXWorkspacePanel,
+                            PresetCatalogPanel, load_config, save_config)
 from midi_interface import HXStompMidi
 from tone_manager import Tone, ToneManager
 
@@ -29,18 +39,72 @@ from tone_manager import Tone, ToneManager
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
-# UI chrome palette (kept minimal so tone card colors dominate)
-_BG_TOOLBAR   = "#1e1e1e"
-_BG_STATUS    = "#1a1a1a"
+
+def _resolve_ui_font() -> str:
+    """Return the best available UI font family for the current platform."""
+    try:
+        avail = set(_tkfont.families())
+    except Exception:
+        return "Helvetica"
+    for f in ("Inter", "Segoe UI", "Liberation Sans", "Helvetica Neue",
+              "Helvetica", "Arial"):
+        if f in avail:
+            return f
+    return "Helvetica"
+
+
+_UI_FONT_FAMILY = _resolve_ui_font()
+
+# UI chrome palette
+_BG_BASE      = "#141414"   # deepest: scroll areas, app root
+_BG_SURFACE   = "#1e1e1e"   # toolbars, headers, footers
+_BG_CARD      = "#252525"   # elevated surfaces: cards, hint boxes
+_BG_INPUT     = "#2d2d2d"   # inputs, hover targets
+_BG_MENU      = "#2b2b2b"   # tk.Menu background (kept for tk compat)
 _TEXT_DIM     = "#888888"
 _TEXT_BRIGHT  = "#e0e0e0"
 _ACCENT       = "#4A90D9"
 _COL_CONN     = "#2ecc71"   # green  — connected
 _COL_DISC     = "#e74c3c"   # red    — disconnected
+
+# Aliases for backward compat within this file
+_BG_TOOLBAR = _BG_SURFACE
+_BG_STATUS  = _BG_BASE
+
+_BORDER_DIM    = "#333333"   # borders, separators
+_BG_TEXT_INPUT = "#2b2b2b"   # tk.Text / entry area backgrounds
+_TEXT_WARN     = "#e8a838"   # amber warning text
+_BG_WARN       = "#2a2000"   # amber warning frame background
+
 _CARD_W       = 160
 _CARD_H       = 90
 _CARD_RADIUS  = 10
 _MIN_COLS     = 1
+
+# Category badge colors for tone cards — aligned with Line 6 HX color scheme
+_TONE_CAT_COLORS: dict[str, str] = {
+    "Clean":     "#2c6fad",   # cool blue
+    "Overdrive": "#c8930a",   # amber-yellow (Line 6 drive color)
+    "High Gain": "#bb2222",   # red (Line 6 amp/high-gain color)
+    "Fuzz":      "#7b2fbe",   # purple (Line 6 filter/EQ color)
+    "Ambient":   "#0e7a8c",   # cyan-teal (Line 6 reverb color)
+    "Bass":      "#3d4fb5",   # blue-indigo (Line 6 modulation color)
+    "Acoustic":  "#1e8c45",   # green (Line 6 delay color)
+    "Other":     "#555555",
+}
+
+
+# ---------------------------------------------------------------------------
+# UI helpers
+# ---------------------------------------------------------------------------
+
+def _safe_grab(window: ctk.CTkToplevel) -> None:
+    """Deferred grab_set() that survives X11/Wayland window-visibility timing."""
+    try:
+        window.wait_visibility()
+        window.grab_set()
+    except Exception:
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -52,7 +116,10 @@ def _contrast_color(hex_color: str) -> str:
     h = hex_color.lstrip("#")
     if len(h) != 6:
         return "#ffffff"
-    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    try:
+        r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    except ValueError:
+        return "#ffffff"
     return "#000000" if (0.299 * r + 0.587 * g + 0.114 * b) > 128 else "#ffffff"
 
 
@@ -61,7 +128,10 @@ def _adjust_brightness(hex_color: str, factor: float = 0.80) -> str:
     h = hex_color.lstrip("#")
     if len(h) != 6:
         return hex_color
-    r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    try:
+        r, g, b = int(h[0:2], 16), int(h[2:4], 16), int(h[4:6], 16)
+    except ValueError:
+        return hex_color
     r, g, b = (max(0, min(255, int(c * factor))) for c in (r, g, b))
     return f"#{r:02x}{g:02x}{b:02x}"
 
@@ -70,9 +140,12 @@ def _muted_color(fg: str, bg: str, alpha: float = 0.55) -> str:
     """Blend `fg` toward `bg` to produce a muted variant for subtitle text."""
     def ch(h: str, i: int) -> int:
         return int(h.lstrip("#")[i:i + 2], 16)
-    r = int(ch(fg, 0) * alpha + ch(bg, 0) * (1 - alpha))
-    g = int(ch(fg, 2) * alpha + ch(bg, 2) * (1 - alpha))
-    b = int(ch(fg, 4) * alpha + ch(bg, 4) * (1 - alpha))
+    try:
+        r = int(ch(fg, 0) * alpha + ch(bg, 0) * (1 - alpha))
+        g = int(ch(fg, 2) * alpha + ch(bg, 2) * (1 - alpha))
+        b = int(ch(fg, 4) * alpha + ch(bg, 4) * (1 - alpha))
+    except ValueError:
+        return fg
     return f"#{r:02x}{g:02x}{b:02x}"
 
 
@@ -87,7 +160,9 @@ class ConnectDialog(ctk.CTkToplevel):
         super().__init__(parent)
         self.title("Connect to MIDI Port")
         self.resizable(False, False)
-        self.grab_set()
+        self.transient(parent)
+        self.lift()
+        self.after(10, lambda: _safe_grab(self))
         self._on_connect = on_connect
         self._ports: list[str] = []
 
@@ -97,19 +172,33 @@ class ConnectDialog(ctk.CTkToplevel):
     def _build(self) -> None:
         pad = {"padx": 12, "pady": 6}
 
+        # Hardware setup hint
+        hint = ctk.CTkFrame(self, fg_color=_BG_CARD, corner_radius=6)
+        hint.grid(row=0, column=0, columnspan=2, sticky="ew", padx=12, pady=(10, 4))
+        ctk.CTkLabel(
+            hint,
+            text="① Plug the HX Stomp into USB and power it on.\n"
+                 "② Set the channel below to match the device:\n"
+                 "   Menu → Global Settings → MIDI/Tempo → MIDI Channel\n"
+                 "③ If the port doesn't appear, click ↺ Refresh.",
+            font=ctk.CTkFont(size=10),
+            text_color=_TEXT_DIM,
+            anchor="w", justify="left",
+        ).pack(padx=10, pady=8, fill="x")
+
         ctk.CTkLabel(self, text="MIDI Output Port", anchor="w").grid(
-            row=0, column=0, columnspan=2, sticky="w", **pad)
+            row=1, column=0, columnspan=2, sticky="w", **pad)
 
         self._port_var = tk.StringVar()
         self._port_cb = ctk.CTkComboBox(
             self, variable=self._port_var, width=280, state="readonly")
-        self._port_cb.grid(row=1, column=0, sticky="ew", padx=(12, 4), pady=4)
+        self._port_cb.grid(row=2, column=0, sticky="ew", padx=(12, 4), pady=4)
 
         ctk.CTkButton(self, text="↺", width=36, command=self._refresh).grid(
-            row=1, column=1, padx=(0, 12), pady=4)
+            row=2, column=1, padx=(0, 12), pady=4)
 
         ctk.CTkLabel(self, text="Channel (1–16)", anchor="w").grid(
-            row=2, column=0, columnspan=2, sticky="w", **pad)
+            row=3, column=0, columnspan=2, sticky="w", **pad)
 
         self._chan_var = tk.IntVar(value=1)
         ctk.CTkSlider(
@@ -117,13 +206,13 @@ class ConnectDialog(ctk.CTkToplevel):
             variable=self._chan_var,
             command=lambda v: self._chan_lbl.configure(
                 text=f"Channel {int(v)}")
-        ).grid(row=3, column=0, sticky="ew", padx=(12, 4), pady=4)
+        ).grid(row=4, column=0, sticky="ew", padx=(12, 4), pady=4)
 
         self._chan_lbl = ctk.CTkLabel(self, text="Channel 1", width=72)
-        self._chan_lbl.grid(row=3, column=1, padx=(0, 12))
+        self._chan_lbl.grid(row=4, column=1, padx=(0, 12))
 
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
-        btn_frame.grid(row=4, column=0, columnspan=2, pady=12)
+        btn_frame.grid(row=5, column=0, columnspan=2, pady=12)
 
         ctk.CTkButton(btn_frame, text="Connect",
                       command=self._connect).pack(side="left", padx=6)
@@ -134,13 +223,23 @@ class ConnectDialog(ctk.CTkToplevel):
     def _refresh(self) -> None:
         self._ports = HXStompMidi.list_output_ports()
         self._port_cb.configure(values=self._ports)
+        # Prefer: auto-detected HX port → saved last port → first available
         auto = HXStompMidi.find_hx_port()
+        cfg  = load_config()
+        saved_port = cfg.get("last_midi_port", "")
+        saved_chan  = int(cfg.get("last_midi_channel", 1))
         if auto:
             self._port_var.set(auto)
+        elif saved_port in self._ports:
+            self._port_var.set(saved_port)
         elif self._ports:
             self._port_var.set(self._ports[0])
         else:
             self._port_var.set("")
+        # Restore saved channel if no auto-detected HX port overrides it
+        if not auto and saved_chan != 1:
+            self._chan_var.set(saved_chan)
+            self._chan_lbl.configure(text=f"Channel {saved_chan}")
 
     def _connect(self) -> None:
         port = self._port_var.get()
@@ -148,6 +247,11 @@ class ConnectDialog(ctk.CTkToplevel):
             messagebox.showwarning("No port", "No MIDI port selected.", parent=self)
             return
         channel = int(self._chan_var.get())
+        # Persist for next session
+        cfg = load_config()
+        cfg["last_midi_port"]    = port
+        cfg["last_midi_channel"] = channel
+        save_config(cfg)
         self._on_connect(port, channel)
         self.destroy()
 
@@ -163,7 +267,9 @@ class ToneDialog(ctk.CTkToplevel):
         super().__init__(parent)
         self.title(title)
         self.resizable(False, False)
-        self.grab_set()
+        self.transient(parent)
+        self.lift()
+        self.after(10, lambda: _safe_grab(self))
         self.result: Optional[Tone] = None
 
         tone = tone or Tone(name="", preset=0)
@@ -200,8 +306,19 @@ class ToneDialog(ctk.CTkToplevel):
         )
         self._color_btn.grid(row=color_row, column=1, padx=(4, 12), pady=5, sticky="w")
 
+        hint = ctk.CTkFrame(self, fg_color=_BG_CARD, corner_radius=6)
+        hint.grid(row=color_row + 1, column=0, columnspan=2,
+                  sticky="ew", padx=12, pady=(4, 2))
+        ctk.CTkLabel(
+            hint,
+            text='Bank LSB 0\u20133 = Setlist 1\u20134  \u00b7  Preset 0 = display "1A"  \u00b7  Snapshot 0 = Snapshot 1',
+            font=ctk.CTkFont(size=9),
+            text_color=_TEXT_DIM,
+            anchor="w",
+        ).pack(padx=8, pady=5, fill="x")
+
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
-        btn_frame.grid(row=color_row + 1, column=0, columnspan=2, pady=12)
+        btn_frame.grid(row=color_row + 2, column=0, columnspan=2, pady=12)
 
         ctk.CTkButton(btn_frame, text="OK", width=90,
                       command=self._ok).pack(side="left", padx=6)
@@ -223,9 +340,17 @@ class ToneDialog(ctk.CTkToplevel):
             )
 
     def _ok(self) -> None:
+        name = self._vars["name"].get().strip()
+        if not name:
+            messagebox.showerror("Invalid input", "Tone name cannot be empty.", parent=self)
+            return
+        if len(name) > 64:
+            messagebox.showerror("Invalid input",
+                                 "Tone name must be 64 characters or fewer.", parent=self)
+            return
         try:
             self.result = Tone(
-                name     = self._vars["name"].get().strip(),
+                name     = name,
                 preset   = int(self._vars["preset"].get()),
                 snapshot = int(self._vars["snapshot"].get()),
                 bank_msb = int(self._vars["bank_msb"].get()),
@@ -241,23 +366,277 @@ class ToneDialog(ctk.CTkToplevel):
 
 
 # ---------------------------------------------------------------------------
+# LiveControlPanel
+# ---------------------------------------------------------------------------
+
+class LiveControlPanel(ctk.CTkFrame):
+    """
+    Collapsible panel for live MIDI performance controls.
+    Three sections: snapshot navigation, tap tempo, and looper transport.
+    """
+
+    _COL_RECORD  = "#e74c3c"
+    _COL_PLAY    = "#2ecc71"
+    _COL_OVERDUB = "#e67e22"
+
+    def __init__(self, parent, midi, status_fn):
+        super().__init__(parent, fg_color=_BG_CARD, corner_radius=0)
+        self._midi       = midi
+        self._status_fn  = status_fn
+        self._tap_times: list[float] = []
+        self._looper_state = {
+            "recording": False, "playing": False, "overdubbing": False,
+            "reverse": False, "half_speed": False,
+        }
+        self._build()
+
+    # ------------------------------------------------------------------
+    # Layout helpers
+    # ------------------------------------------------------------------
+
+    def _section(self, parent, title: str) -> ctk.CTkFrame:
+        """Create a labeled section packed left; returns the inner button frame."""
+        outer = ctk.CTkFrame(parent, fg_color="transparent")
+        outer.pack(side="left", padx=8, pady=4)
+        ctk.CTkLabel(
+            outer, text=title,
+            font=ctk.CTkFont(family=_UI_FONT_FAMILY, size=9, weight="bold"),
+            text_color=_TEXT_DIM,
+        ).pack(anchor="w", pady=(2, 0))
+        inner = ctk.CTkFrame(outer, fg_color="transparent")
+        inner.pack(fill="x")
+        return inner
+
+    def _vdivider(self, parent) -> None:
+        ctk.CTkFrame(parent, width=1, fg_color="#3a3a3a",
+                     corner_radius=0).pack(side="left", fill="y", padx=4, pady=8)
+
+    def _lbtn(self, parent, text: str, cmd, width: int = 72,
+              icon_name: str = "") -> ctk.CTkButton:
+        btn = icon_btn(
+            parent, icon_name, text, width=width,
+            fg_color="transparent", hover_color=_BORDER_DIM,
+            text_color=_TEXT_BRIGHT, height=26, corner_radius=5,
+            command=cmd,
+        )
+        btn.pack(side="left", padx=2, pady=2)
+        return btn
+
+    # ------------------------------------------------------------------
+    # Build
+    # ------------------------------------------------------------------
+
+    def _build(self) -> None:
+        # SNAPSHOTS
+        snap = self._section(self, "SNAPSHOTS")
+        self._lbtn(snap, "Prev", self._prev_snapshot, width=80, icon_name="caret-left")
+        self._lbtn(snap, "Next", self._next_snapshot, width=80, icon_name="caret-right")
+
+        self._vdivider(self)
+
+        # TAP TEMPO
+        tap = self._section(self, "TAP TEMPO")
+        self._lbtn(tap, "Tap", self._tap, width=80, icon_name="timer")
+        self._bpm_lbl = ctk.CTkLabel(
+            tap, text="— BPM", width=72,
+            font=ctk.CTkFont(family=_UI_FONT_FAMILY, size=13, weight="bold"),
+            text_color=_TEXT_BRIGHT,
+        )
+        self._bpm_lbl.pack(side="left", padx=4)
+        self._lbtn(tap, "Reset", self._tap_reset, width=56)
+
+        self._vdivider(self)
+
+        # LOOPER
+        loop = self._section(self, "LOOPER")
+
+        row1 = ctk.CTkFrame(loop, fg_color="transparent")
+        row1.pack(fill="x")
+        self._rec_btn  = self._lbtn(row1, "Rec",      self._looper_record,  icon_name="record")
+        self._play_btn = self._lbtn(row1, "Play",     self._looper_play,    icon_name="play")
+        self._stop_btn = self._lbtn(row1, "Stop",     self._looper_stop,    icon_name="stop")
+        self._undo_btn = self._lbtn(row1, "Undo",     self._looper_undo,    icon_name="arrow-counter-clockwise")
+
+        row2 = ctk.CTkFrame(loop, fg_color="transparent")
+        row2.pack(fill="x")
+        self._od_btn   = self._lbtn(row2, "Overdub",  self._looper_overdub,  width=82, icon_name="arrows-clockwise")
+        self._once_btn = self._lbtn(row2, "Play Once", self._looper_once,    width=82, icon_name="play")
+        self._rev_btn  = self._lbtn(row2, "Reverse",  self._looper_reverse,  width=82, icon_name="arrows-left-right")
+        self._half_btn = self._lbtn(row2, "Half Spd", self._looper_half,     width=82, icon_name="gauge")
+
+    # ------------------------------------------------------------------
+    # Connection guard
+    # ------------------------------------------------------------------
+
+    def _guard(self) -> bool:
+        if not self._midi.is_connected:
+            self._status_fn("Not connected — use MIDI → Connect… first")
+            return False
+        return True
+
+    # ------------------------------------------------------------------
+    # Snapshot controls
+    # ------------------------------------------------------------------
+
+    def _prev_snapshot(self) -> None:
+        if self._guard():
+            self._midi.prev_snapshot()
+
+    def _next_snapshot(self) -> None:
+        if self._guard():
+            self._midi.next_snapshot()
+
+    # ------------------------------------------------------------------
+    # Tap Tempo
+    # ------------------------------------------------------------------
+
+    def _tap(self) -> None:
+        now = time.perf_counter()
+        if self._tap_times and (now - self._tap_times[-1]) > 4.0:
+            self._tap_times.clear()
+        self._tap_times.append(now)
+        if len(self._tap_times) > 8:
+            self._tap_times = self._tap_times[-8:]
+
+        if self._guard():
+            self._midi.tap_tempo()
+
+        if len(self._tap_times) >= 2:
+            intervals = [
+                self._tap_times[i + 1] - self._tap_times[i]
+                for i in range(len(self._tap_times) - 1)
+            ]
+            bpm = round(60.0 / (sum(intervals) / len(intervals)))
+            self._bpm_lbl.configure(text=f"{bpm} BPM")
+        else:
+            self._bpm_lbl.configure(text="— BPM")
+
+    def _tap_reset(self) -> None:
+        self._tap_times.clear()
+        self._bpm_lbl.configure(text="— BPM")
+
+    # ------------------------------------------------------------------
+    # Looper controls
+    # ------------------------------------------------------------------
+
+    def _looper_record(self) -> None:
+        if not self._guard():
+            return
+        s = self._looper_state
+        s["recording"]   = not s["recording"]
+        s["overdubbing"] = False
+        if s["recording"]:
+            s["playing"] = False
+        self._midi.looper_record()
+        self._refresh_looper_btns()
+
+    def _looper_play(self) -> None:
+        if not self._guard():
+            return
+        s = self._looper_state
+        s["playing"]     = True
+        s["recording"]   = False
+        s["overdubbing"] = False
+        self._midi.looper_play()
+        self._refresh_looper_btns()
+
+    def _looper_stop(self) -> None:
+        if not self._guard():
+            return
+        s = self._looper_state
+        s["playing"]     = False
+        s["recording"]   = False
+        s["overdubbing"] = False
+        self._midi.looper_stop()
+        self._refresh_looper_btns()
+
+    def _looper_undo(self) -> None:
+        if self._guard():
+            self._midi.looper_undo_redo()
+
+    def _looper_overdub(self) -> None:
+        if not self._guard():
+            return
+        s = self._looper_state
+        s["overdubbing"] = not s["overdubbing"]
+        s["recording"]   = False
+        self._midi.looper_overdub()
+        self._refresh_looper_btns()
+
+    def _looper_once(self) -> None:
+        if self._guard():
+            self._midi.looper_play_once()
+
+    def _looper_reverse(self) -> None:
+        if not self._guard():
+            return
+        on = not self._looper_state["reverse"]
+        self._looper_state["reverse"] = on
+        self._midi.looper_reverse(on)
+        self._refresh_looper_btns()
+
+    def _looper_half(self) -> None:
+        if not self._guard():
+            return
+        on = not self._looper_state["half_speed"]
+        self._looper_state["half_speed"] = on
+        self._midi.looper_half_speed(on)
+        self._refresh_looper_btns()
+
+    def _refresh_looper_btns(self) -> None:
+        s = self._looper_state
+        self._rec_btn.configure(
+            fg_color=self._COL_RECORD  if s["recording"]   else "transparent")
+        self._play_btn.configure(
+            fg_color=self._COL_PLAY    if s["playing"]     else "transparent")
+        self._od_btn.configure(
+            fg_color=self._COL_OVERDUB if s["overdubbing"] else "transparent")
+        self._rev_btn.configure(
+            fg_color=_ACCENT           if s["reverse"]     else "transparent")
+        self._half_btn.configure(
+            fg_color=_ACCENT           if s["half_speed"]  else "transparent")
+
+
+# ---------------------------------------------------------------------------
 # Main soundboard window
 # ---------------------------------------------------------------------------
 
 class SoundboardApp(ctk.CTk):
 
-    def __init__(self, presets_file: str = "presets.json"):
+    def __init__(self, presets_file: str = "presets.json",
+                 no_llm: bool = False):
         super().__init__()
-        self.title("HX Stomp Soundboard")
-        self.minsize(600, 480)
+        try:
+            from __version__ import VERSION as _ver
+            _title = f"HLX Generator v{_ver} — AI Preset Builder & MIDI Soundboard"
+        except ImportError:
+            _title = "HLX Generator — AI Preset Builder & MIDI Soundboard"
+        self.title(_title)
+        self.minsize(700, 520)
 
         self._midi   = HXStompMidi()
-        self._tones  = ToneManager(presets_file)
+        try:
+            self._tones = ToneManager(presets_file)
+        except ValueError as exc:
+            messagebox.showerror(
+                "Could not load presets",
+                f"{exc}\n\nStarting with an empty preset list."
+            )
+            self._tones = ToneManager.create_empty(presets_file)
         self._active: Optional[str] = None
         self._cols   = 4
         self._card_frames: dict[str, ctk.CTkFrame] = {}  # name → wrapper frame
+        self._no_llm        = no_llm
+        self._live_visible  = False
+        self._live_view_var = tk.BooleanVar(value=False)
 
+        self._set_window_icon()
         self._build_ui()
+        cfg = load_config()
+        if cfg.get("live_panel_visible", False):
+            self._live_visible = True
+            self._live_view_var.set(True)
+            self._live_ctrl.pack(fill="x", side="top", before=self._scroll)
         self._render_tones()
         self.protocol("WM_DELETE_WINDOW", self._on_close)
 
@@ -265,23 +644,84 @@ class SoundboardApp(ctk.CTk):
     # UI construction
     # ------------------------------------------------------------------
 
+    def _set_window_icon(self) -> None:
+        icon_path = Path(__file__).parent / "assets" / "icons" / "app-icon.png"
+        if not icon_path.exists():
+            return
+        try:
+            from PIL import Image as _PilImg, ImageTk as _PilTk
+            src = _PilImg.open(icon_path)
+            # Multi-size: X11/Wayland compositor picks the best fit
+            self._app_icon_refs = []
+            for s in (48, 128, 256, 512):
+                resized = src.resize((s, s), _PilImg.LANCZOS)
+                photo   = _PilTk.PhotoImage(resized)
+                self._app_icon_refs.append(photo)  # prevent GC
+            # Pass all sizes; Tk/WM selects the most appropriate
+            self.wm_iconphoto(True, *self._app_icon_refs)
+            # Hint to WM for taskbar grouping (matches StartupWMClass in .desktop)
+            self.tk.call("wm", "iconname", self._w, "hxstomp")
+        except Exception:
+            pass
+
     def _build_ui(self) -> None:
         self._build_menu()
+
+        self._tabs = ctk.CTkTabview(
+            self, corner_radius=0, fg_color="transparent",
+            segmented_button_fg_color=_BG_SURFACE,
+            segmented_button_selected_color=_ACCENT,
+            segmented_button_selected_hover_color="#3a7bc8",
+            segmented_button_unselected_color=_BG_SURFACE,
+            segmented_button_unselected_hover_color=_BG_INPUT,
+            text_color=_TEXT_BRIGHT,
+        )
+        self._tabs.pack(fill="both", expand=True, padx=0, pady=0)
+
+        self._hlx_tab   = self._tabs.add("🎸  HLX Generator")
+        self._board_tab = self._tabs.add("🎵  Soundboard")
+        self._tabs.set("🎸  HLX Generator")
+
+        self._build_hlx_content()
         self._build_toolbar()
+        self._build_live_panel()
         self._build_grid()
         self._build_statusbar()
+
+    def _build_hlx_content(self) -> None:
+        pane = tk.PanedWindow(self._hlx_tab, orient=tk.VERTICAL,
+                               sashwidth=5, sashrelief="flat",
+                               bg="#2a2a2a")
+        pane.pack(fill="both", expand=True)
+
+        ws_pane = ctk.CTkFrame(pane, fg_color="transparent")
+        ws_outer = ctk.CTkScrollableFrame(ws_pane, fg_color="transparent")
+        ws_outer.pack(fill="both", expand=True)
+        self._hlx_workspace = HLXWorkspacePanel(
+            ws_outer,
+            no_llm=self._no_llm,
+            on_preset_saved=self._on_hlx_preset_saved,
+        )
+        self._hlx_workspace.pack(fill="x", padx=0, pady=0)
+        pane.add(ws_pane, minsize=220, stretch="always")
+
+        self._hlx_catalog = PresetCatalogPanel(pane)
+        pane.add(self._hlx_catalog, minsize=120, stretch="always")
+
+    def _on_hlx_preset_saved(self) -> None:
+        self._hlx_catalog.refresh()
 
     # ---- Menu bar ----------------------------------------------------
 
     def _build_menu(self) -> None:
         menubar = tk.Menu(self, tearoff=0,
-                          bg="#2b2b2b", fg=_TEXT_BRIGHT,
+                          bg=_BG_MENU, fg=_TEXT_BRIGHT,
                           activebackground=_ACCENT, activeforeground="#ffffff",
                           bd=0)
 
         # File
         file_menu = tk.Menu(menubar, tearoff=0,
-                            bg="#2b2b2b", fg=_TEXT_BRIGHT,
+                            bg=_BG_MENU, fg=_TEXT_BRIGHT,
                             activebackground=_ACCENT, activeforeground="#ffffff")
         file_menu.add_command(label="💾  Save",          command=self._save,
                               accelerator="Ctrl+S")
@@ -293,7 +733,7 @@ class SoundboardApp(ctk.CTk):
 
         # MIDI
         midi_menu = tk.Menu(menubar, tearoff=0,
-                            bg="#2b2b2b", fg=_TEXT_BRIGHT,
+                            bg=_BG_MENU, fg=_TEXT_BRIGHT,
                             activebackground=_ACCENT, activeforeground="#ffffff")
         midi_menu.add_command(label="⏵  Connect…",      command=self._open_connect_dialog)
         midi_menu.add_command(label="⏹  Disconnect",    command=self._disconnect)
@@ -303,7 +743,7 @@ class SoundboardApp(ctk.CTk):
         # Channel submenu
         self._chan_var = tk.IntVar(value=1)
         chan_menu = tk.Menu(midi_menu, tearoff=0,
-                            bg="#2b2b2b", fg=_TEXT_BRIGHT,
+                            bg=_BG_MENU, fg=_TEXT_BRIGHT,
                             activebackground=_ACCENT, activeforeground="#ffffff")
         for ch in range(1, 17):
             chan_menu.add_radiobutton(
@@ -316,12 +756,41 @@ class SoundboardApp(ctk.CTk):
 
         # Tones
         tones_menu = tk.Menu(menubar, tearoff=0,
-                             bg="#2b2b2b", fg=_TEXT_BRIGHT,
+                             bg=_BG_MENU, fg=_TEXT_BRIGHT,
                              activebackground=_ACCENT, activeforeground="#ffffff")
+        tones_menu.add_command(label="🎸  Open HLX Generator",
+                               command=lambda: self._tabs.set("🎸  HLX Generator"))
+        tones_menu.add_command(label="✨  Generate Tone…",   command=self._generate_tone)
+        tones_menu.add_separator()
         tones_menu.add_command(label="⊕  Add Tone",     command=self._add_tone)
         tones_menu.add_command(label="✏  Edit Selected", command=self._edit_tone)
         tones_menu.add_command(label="🗑  Remove Selected", command=self._remove_tone)
         menubar.add_cascade(label="Tones", menu=tones_menu)
+
+        # View
+        view_menu = tk.Menu(menubar, tearoff=0,
+                            bg=_BG_MENU, fg=_TEXT_BRIGHT,
+                            activebackground=_ACCENT, activeforeground="#ffffff")
+        view_menu.add_checkbutton(
+            label="⚡  Live Controls",
+            variable=self._live_view_var,
+            command=self._toggle_live_panel)
+        menubar.add_cascade(label="View", menu=view_menu)
+
+        # Help
+        help_menu = tk.Menu(menubar, tearoff=0,
+                            bg=_BG_MENU, fg=_TEXT_BRIGHT,
+                            activebackground=_ACCENT, activeforeground="#ffffff")
+        help_menu.add_command(label="📖  Getting Started…",
+                              command=self._show_getting_started)
+        help_menu.add_separator()
+        help_menu.add_command(label="MIDI Reference",
+                              command=lambda: self._open_doc("MIDI_REFERENCE.md"))
+        help_menu.add_command(label="AI Providers",
+                              command=lambda: self._open_doc("LLM_PROVIDERS.md"))
+        help_menu.add_command(label="HLX Generation",
+                              command=lambda: self._open_doc("HLX_GENERATION.md"))
+        menubar.add_cascade(label="Help", menu=help_menu)
 
         self.configure(menu=menubar)
 
@@ -332,37 +801,45 @@ class SoundboardApp(ctk.CTk):
     # ---- Toolbar -----------------------------------------------------
 
     def _build_toolbar(self) -> None:
-        toolbar = ctk.CTkFrame(self, height=44, fg_color=_BG_TOOLBAR,
+        toolbar = ctk.CTkFrame(self._board_tab, height=44, fg_color=_BG_TOOLBAR,
                                corner_radius=0)
         toolbar.pack(fill="x", side="top")
         toolbar.pack_propagate(False)
 
         btn_opts = dict(
             fg_color    = "transparent",
-            hover_color = "#333333",
+            hover_color = _BORDER_DIM,
             text_color  = _TEXT_BRIGHT,
             height      = 32,
             corner_radius = 6,
         )
 
-        ctk.CTkButton(toolbar, text="⊕  Add",    width=90,
-                      command=self._add_tone,    **btn_opts).pack(
-            side="left", padx=(8, 2), pady=6)
-        ctk.CTkButton(toolbar, text="✏  Edit",   width=90,
-                      command=self._edit_tone,   **btn_opts).pack(
-            side="left", padx=2,      pady=6)
-        ctk.CTkButton(toolbar, text="🗑  Remove", width=100,
-                      command=self._remove_tone, **btn_opts).pack(
-            side="left", padx=2,      pady=6)
-        ctk.CTkButton(toolbar, text="↺  Reload", width=90,
-                      command=self._reload,      **btn_opts).pack(
-            side="left", padx=2,      pady=6)
+        icon_btn(toolbar, "plus",   "Add",    width=90, command=self._add_tone,    **btn_opts).pack(side="left", padx=(8, 2), pady=6)
+        icon_btn(toolbar, "pencil-simple", "Edit",   width=90, command=self._edit_tone,   **btn_opts).pack(side="left", padx=2, pady=6)
+        icon_btn(toolbar, "trash",  "Remove", width=90, command=self._remove_tone, **btn_opts).pack(side="left", padx=2, pady=6)
+        icon_btn(toolbar, "arrows-clockwise", "Reload", width=90, command=self._reload, **btn_opts).pack(side="left", padx=2, pady=6)
+
+        # Thin separator
+        ctk.CTkFrame(toolbar, width=1, fg_color="#3a3a3a",
+                     corner_radius=0).pack(side="left", fill="y", padx=8, pady=8)
+
+        icon_btn(toolbar, "sparkle", "Label Tone", width=105,
+                 command=self._generate_tone, **btn_opts).pack(side="left", padx=2, pady=6)
+
+        # Live panel toggle — right-aligned
+        self._live_btn = icon_btn(
+            toolbar, "lightning", "Live", width=90,
+            command=self._toggle_live_panel, **btn_opts)
+        self._live_btn.pack(side="right", padx=(2, 8), pady=6)
 
     # ---- Tone grid ---------------------------------------------------
 
     def _build_grid(self) -> None:
-        self._scroll = ctk.CTkScrollableFrame(self, fg_color="#1c1c1c",
-                                              corner_radius=0)
+        self._scroll = ctk.CTkScrollableFrame(
+            self._board_tab, fg_color=_BG_BASE, corner_radius=0,
+            scrollbar_button_color="#444444",
+            scrollbar_button_hover_color="#666666",
+        )
         self._scroll.pack(fill="both", expand=True)
         # Responsive column recalculation
         self._scroll.bind("<Configure>", self._on_grid_resize)
@@ -376,27 +853,32 @@ class SoundboardApp(ctk.CTk):
     # ---- Status bar --------------------------------------------------
 
     def _build_statusbar(self) -> None:
-        bar = ctk.CTkFrame(self, height=32, fg_color=_BG_STATUS,
+        bar = ctk.CTkFrame(self._board_tab, height=32, fg_color=_BG_STATUS,
                            corner_radius=0)
         bar.pack(fill="x", side="bottom")
         bar.pack_propagate(False)
-
-        self._dot_lbl = ctk.CTkLabel(
-            bar, text="●", text_color=_COL_DISC,
-            font=ctk.CTkFont(size=14))
-        self._dot_lbl.pack(side="left", padx=(10, 4))
 
         self._active_lbl = ctk.CTkLabel(
             bar, text="No tone selected",
             font=ctk.CTkFont(size=12),
             text_color=_TEXT_DIM, anchor="w")
-        self._active_lbl.pack(side="left", fill="x", expand=True)
+        self._active_lbl.pack(side="left", fill="x", expand=True, padx=(10, 0))
 
-        self._port_lbl = ctk.CTkLabel(
-            bar, text="Not connected",
-            font=ctk.CTkFont(size=11),
-            text_color=_TEXT_DIM, anchor="e")
-        self._port_lbl.pack(side="right", padx=10)
+        # Connection pill — replaces separate dot + port label
+        self._conn_pill = ctk.CTkFrame(
+            bar, corner_radius=10, border_width=1,
+            fg_color=_BG_CARD, border_color=_BORDER_DIM)
+        self._conn_pill.pack(side="right", padx=(0, 10), pady=6)
+
+        self._conn_dot = ctk.CTkLabel(
+            self._conn_pill, text="●", text_color=_COL_DISC,
+            font=ctk.CTkFont(size=10))
+        self._conn_dot.pack(side="left", padx=(8, 3))
+
+        self._conn_text = ctk.CTkLabel(
+            self._conn_pill, text="Not connected",
+            font=ctk.CTkFont(size=11), text_color=_TEXT_DIM)
+        self._conn_text.pack(side="left", padx=(0, 8))
 
     # ------------------------------------------------------------------
     # Tone grid rendering
@@ -408,6 +890,11 @@ class SoundboardApp(ctk.CTk):
         self._card_frames.clear()
 
         by_cat = self._tones.tones_by_category()
+
+        if not by_cat:
+            self._render_empty_state()
+            return
+
         row_offset = 0
 
         for cat, tones in by_cat.items():
@@ -423,6 +910,51 @@ class SoundboardApp(ctk.CTk):
 
             row_offset += (len(tones) + self._cols - 1) // self._cols
 
+    def _render_empty_state(self) -> None:
+        """Show a helpful guide when no tones have been added yet."""
+        outer = ctk.CTkFrame(self._scroll, fg_color="transparent")
+        outer.grid(row=0, column=0, padx=20, pady=60)
+
+        ctk.CTkLabel(
+            outer,
+            text="No tones yet",
+            font=ctk.CTkFont(size=18, weight="bold"),
+            text_color=_TEXT_DIM,
+        ).pack(pady=(0, 6))
+
+        ctk.CTkLabel(
+            outer,
+            text="Add tones manually or let AI help you build your setlist.",
+            font=ctk.CTkFont(size=12),
+            text_color=_TEXT_DIM,
+        ).pack(pady=(0, 24))
+
+        steps = [
+            ("⊕  Add Tone",           "Open the Add Tone form and enter a preset number from your HX Stomp."),
+            ("✨  Label Tone",          "Describe a sound in plain English — AI suggests name, color, and category."),
+            ("📦  Generate Preset",     "Describe a tone or artist — AI builds a complete .hlx file with amp and effects."),
+            ("MIDI → Connect…",         "Plug HX Stomp into USB, then MIDI → Connect…. Match the channel to your device: Menu → Global Settings → MIDI/Tempo → MIDI Channel."),
+        ]
+        for action, detail in steps:
+            row_frame = ctk.CTkFrame(outer, fg_color=_BG_CARD, corner_radius=8)
+            row_frame.pack(fill="x", pady=3, ipadx=8, ipady=6)
+
+            ctk.CTkLabel(
+                row_frame,
+                text=action,
+                font=ctk.CTkFont(size=11, weight="bold"),
+                text_color=_TEXT_BRIGHT,
+                width=160, anchor="w",
+            ).pack(side="left", padx=(12, 8))
+
+            ctk.CTkLabel(
+                row_frame,
+                text=detail,
+                font=ctk.CTkFont(size=11),
+                text_color=_TEXT_DIM,
+                anchor="w",
+            ).pack(side="left", padx=(0, 12))
+
     def _render_category_separator(self, cat: str, row: int) -> None:
         frame = ctk.CTkFrame(self._scroll, fg_color="transparent", height=28)
         frame.grid(row=row, column=0, columnspan=max(self._cols, 1),
@@ -435,14 +967,14 @@ class SoundboardApp(ctk.CTk):
         ctk.CTkLabel(
             frame,
             text=cat.upper(),
-            font=ctk.CTkFont(family="Helvetica", size=10, weight="bold"),
+            font=ctk.CTkFont(family=_UI_FONT_FAMILY, size=10, weight="bold"),
             text_color=_TEXT_DIM,
             anchor="w",
         ).pack(side="left", anchor="w")
 
     def _render_card(self, tone: Tone, row: int, col: int) -> None:
         is_active    = tone.name == self._active
-        border_color = _ACCENT if is_active else "#1c1c1c"
+        border_color = _ACCENT if is_active else "#2a2a2a"
         fg           = _contrast_color(tone.color)
         sub_fg       = _muted_color(fg, tone.color, alpha=0.55)
         hover_color  = _adjust_brightness(tone.color)
@@ -471,7 +1003,7 @@ class SoundboardApp(ctk.CTk):
         name_lbl = ctk.CTkLabel(
             card,
             text=tone.name,
-            font=ctk.CTkFont(family="Helvetica", size=13, weight="bold"),
+            font=ctk.CTkFont(family=_UI_FONT_FAMILY, size=13, weight="bold"),
             text_color=fg,
             wraplength=_CARD_W - 16,
             anchor="center",
@@ -481,26 +1013,36 @@ class SoundboardApp(ctk.CTk):
         # MIDI detail — small, muted
         sub_lbl = ctk.CTkLabel(
             card,
-            text=f"PC {tone.preset} · S{tone.snapshot + 1}",
-            font=ctk.CTkFont(family="Helvetica", size=9),
+            text=f"Preset {tone.preset}  ·  Snap {tone.snapshot + 1}",
+            font=ctk.CTkFont(family=_UI_FONT_FAMILY, size=9),
             text_color=sub_fg,
             anchor="center",
         )
         sub_lbl.pack(pady=(0, 10))
 
-        # Click + hover on all three surfaces
-        def on_click(e, t=tone):   self._activate_tone(t)
-        def on_enter(e):           card.configure(fg_color=hover_color)
-        def on_leave(e):           card.configure(fg_color=tone.color)
+        # Category badge — small colored dot, top-right corner
+        badge_color = _TONE_CAT_COLORS.get(tone.category, _TONE_CAT_COLORS["Other"])
+        badge = ctk.CTkFrame(card, width=8, height=8, corner_radius=4,
+                             fg_color=badge_color)
+        badge.place(relx=1.0, rely=0.0, x=-6, y=6, anchor="ne")
 
-        for w in (card, name_lbl, sub_lbl):
+        # Click + hover on all surfaces
+        def on_click(e, t=tone):   self._activate_tone(t)
+        def on_enter(e):
+            card.configure(fg_color=hover_color)
+            wrapper.configure(fg_color=_ACCENT if (tone.name == self._active) else "#444444")
+        def on_leave(e):
+            card.configure(fg_color=tone.color)
+            wrapper.configure(fg_color=_ACCENT if (tone.name == self._active) else "#2a2a2a")
+
+        for w in (card, name_lbl, sub_lbl, badge):
             w.bind("<Button-1>", on_click)
             w.bind("<Enter>",    on_enter)
             w.bind("<Leave>",    on_leave)
 
         # Right-click context menu
         ctx = tk.Menu(self, tearoff=0,
-                      bg="#2b2b2b", fg=_TEXT_BRIGHT,
+                      bg=_BG_MENU, fg=_TEXT_BRIGHT,
                       activebackground=_ACCENT, activeforeground="#ffffff")
         ctx.add_command(label="✏  Edit",   command=lambda t=tone: self._edit_tone(t))
         ctx.add_command(label="🗑  Remove", command=lambda t=tone: self._remove_tone(t))
@@ -546,11 +1088,13 @@ class SoundboardApp(ctk.CTk):
 
     def _update_status(self) -> None:
         if self._midi.is_connected:
-            self._dot_lbl.configure(text_color=_COL_CONN)
-            self._port_lbl.configure(text=self._midi.port_name)
+            self._conn_dot.configure(text_color=_COL_CONN)
+            self._conn_text.configure(text=self._midi.port_name, text_color=_TEXT_BRIGHT)
+            self._conn_pill.configure(border_color="#2ecc7155")
         else:
-            self._dot_lbl.configure(text_color=_COL_DISC)
-            self._port_lbl.configure(text="Not connected")
+            self._conn_dot.configure(text_color=_COL_DISC)
+            self._conn_text.configure(text="Not connected", text_color=_TEXT_DIM)
+            self._conn_pill.configure(border_color=_BORDER_DIM)
 
     # ------------------------------------------------------------------
     # Tone actions
@@ -576,13 +1120,13 @@ class SoundboardApp(ctk.CTk):
         old = self._active
         self._active = tone.name
         self._active_lbl.configure(
-            text=f"{tone.name}  ·  Bank {tone.bank_lsb}  PC {tone.preset}  S{tone.snapshot + 1}",
+            text=f"{tone.name}  ·  {'Setlist ' + str(tone.bank_lsb + 1) if tone.bank_lsb < 4 else 'Bank ' + str(tone.bank_lsb)}  Preset {tone.preset}  Snap {tone.snapshot + 1}",
             text_color=_TEXT_BRIGHT,
         )
         # Refresh border on old and new cards
         for name in (old, tone.name):
             if name and name in self._card_frames:
-                color = _ACCENT if name == self._active else "#1c1c1c"
+                color = _ACCENT if name == self._active else "#2a2a2a"
                 self._card_frames[name].configure(fg_color=color)
 
     def _add_tone(self) -> None:
@@ -644,24 +1188,144 @@ class SoundboardApp(ctk.CTk):
         self._tones.save()
 
     # ------------------------------------------------------------------
-    # Tuner
+    # Live control panel
     # ------------------------------------------------------------------
 
-    def _tuner_on(self) -> bool:
-        return getattr(self, "_tuner_state", False)
+    def _build_live_panel(self) -> None:
+        self._live_ctrl = LiveControlPanel(self._board_tab, self._midi, self._show_status)
+
+    def _toggle_live_panel(self) -> None:
+        self._live_visible = not self._live_visible
+        self._live_view_var.set(self._live_visible)
+        cfg = load_config()
+        cfg["live_panel_visible"] = self._live_visible
+        save_config(cfg)
+        if self._live_visible:
+            self._live_ctrl.pack(fill="x", side="top", before=self._scroll)
+        else:
+            self._live_ctrl.pack_forget()
+
+    def _show_status(self, text: str) -> None:
+        self._active_lbl.configure(text=text, text_color=_TEXT_DIM)
+
+    # ------------------------------------------------------------------
+    # LLM tone generation
+    # ------------------------------------------------------------------
+
+    def _generate_tone(self) -> None:
+        if self._no_llm:
+            messagebox.showinfo(
+                "LLM Disabled",
+                "AI tone generation is disabled.\n"
+                "Restart without --no-llm to enable it.")
+            return
+        GenerateToneDialog(self, on_tone_generated=self._on_tone_generated)
+
+    def _on_tone_generated(self, tone: Tone) -> None:
+        dlg = ToneDialog(self, title="Add Generated Tone", tone=tone)
+        self.wait_window(dlg)
+        if dlg.result:
+            try:
+                self._tones.add(dlg.result)
+                self._tones.save()
+                self._render_tones()
+            except ValueError as e:
+                messagebox.showerror("Error", str(e))
+
+    def _generate_preset(self) -> None:
+        if self._no_llm:
+            messagebox.showinfo(
+                "LLM Disabled",
+                "AI preset generation is disabled.\n"
+                "Restart without --no-llm to enable it.")
+            return
+        GeneratePresetDialog(self)
+
+    def _open_catalog(self) -> None:
+        PresetCatalogDialog(self)
+
+    # ------------------------------------------------------------------
+    # Tuner
+    # ------------------------------------------------------------------
 
     def _toggle_tuner(self) -> None:
         if not self._midi.is_connected:
             messagebox.showwarning("Not connected",
                                    "Connect via MIDI → Connect… first.")
             return
-        self._tuner_state = not self._tuner_on()
-        self._midi.set_tuner(self._tuner_state)
-        state_str = "ON" if self._tuner_state else "OFF"
+        active = self._midi.toggle_tuner()
         self._active_lbl.configure(
-            text=f"Tuner {state_str}",
-            text_color=_COL_DISC if self._tuner_state else _TEXT_DIM,
+            text=f"Tuner {'ON' if active else 'OFF'}",
+            text_color=_COL_DISC if active else _TEXT_DIM,
         )
+
+    # ------------------------------------------------------------------
+    # Help
+    # ------------------------------------------------------------------
+
+    def _open_doc(self, filename: str) -> None:
+        """Open a file from the docs/ directory in the OS default viewer."""
+        path = Path(__file__).parent / "docs" / filename
+        if not path.exists():
+            messagebox.showinfo("Not found", f"Could not find {filename}")
+            return
+        if sys.platform == "win32":
+            os.startfile(str(path))
+        elif sys.platform == "darwin":
+            subprocess.run(["open", str(path)], check=False)
+        else:
+            subprocess.run(["xdg-open", str(path)], check=False)
+
+    def _show_getting_started(self) -> None:
+        """Modal quick-start guide covering MIDI connection and .hlx import."""
+        win = ctk.CTkToplevel(self)
+        win.title("Getting Started")
+        win.resizable(False, False)
+        win.transient(self)
+        win.lift()
+        win.after(10, lambda: _safe_grab(win))
+
+        def section(title: str, body: str) -> None:
+            hdr = ctk.CTkFrame(win, fg_color=_BG_CARD, corner_radius=6)
+            hdr.pack(fill="x", padx=14, pady=(10, 0))
+            ctk.CTkLabel(
+                hdr, text=title,
+                font=ctk.CTkFont(size=12, weight="bold"),
+                text_color=_TEXT_BRIGHT, anchor="w",
+            ).pack(padx=10, pady=(8, 2), fill="x")
+            ctk.CTkLabel(
+                hdr, text=body,
+                font=ctk.CTkFont(size=11),
+                text_color=_TEXT_DIM,
+                anchor="w", justify="left", wraplength=420,
+            ).pack(padx=10, pady=(0, 8), fill="x")
+
+        section(
+            "① Connect your HX Stomp",
+            "1. Plug the HX Stomp into USB and power it on.\n"
+            "2. Click MIDI → Connect… in the menu bar.\n"
+            "3. Select the port — it's auto-detected as \"HX Stomp\" if visible.\n"
+            "4. Set the channel to match the device:\n"
+            "   Menu → Global Settings → MIDI/Tempo → MIDI Channel  (default: 1)\n"
+            "5. A green ● in the status bar confirms the connection.\n\n"
+            "Tip: On Linux, add your user to the audio group if no ports appear:\n"
+            "   sudo usermod -aG audio $USER  (then log out and back in)",
+        )
+
+        section(
+            "② Load a generated preset onto your Stomp",
+            "1. Click 📦 Preset in the toolbar, describe your tone, then 💾 Save .hlx…\n"
+            "2. Install HX Edit (free) from line6.com/software if not already installed.\n"
+            "3. In HX Edit: File → Import Preset… → select the saved .hlx file.\n"
+            "4. Drag the preset to your desired slot in HX Edit.\n"
+            "5. Click the sync icon (↓ device) to transfer the preset to the Stomp.",
+        )
+
+        ctk.CTkButton(
+            win, text="Close", width=80,
+            fg_color="transparent", border_width=1, text_color=_TEXT_BRIGHT,
+            command=win.destroy,
+        ).pack(pady=12)
 
     # ------------------------------------------------------------------
     # Lifecycle

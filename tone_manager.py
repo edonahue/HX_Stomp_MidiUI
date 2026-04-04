@@ -126,9 +126,36 @@ class ToneManager:
 
     def load(self) -> None:
         with open(self.filepath, "r", encoding="utf-8") as f:
-            data = json.load(f)
-        self._tones = [Tone.from_dict(d) for d in data]
+            try:
+                data = json.load(f)
+            except json.JSONDecodeError as exc:
+                raise ValueError(
+                    f"Could not parse {self.filepath}: {exc}"
+                ) from exc
+        try:
+            tones = [Tone.from_dict(d) for d in data]
+        except (KeyError, TypeError) as exc:
+            raise ValueError(
+                f"Malformed entry in {self.filepath}: missing field {exc}"
+            ) from exc
+        for t in tones:
+            try:
+                t.validate()
+            except ValueError as exc:
+                raise ValueError(
+                    f"Invalid MIDI values in {self.filepath} "
+                    f"for tone '{t.name}': {exc}"
+                ) from exc
+        self._tones = tones
         print(f"[ToneManager] Loaded {len(self._tones)} tones from {self.filepath}")
+
+    @classmethod
+    def create_empty(cls, filepath: str | Path) -> "ToneManager":
+        """Return a ToneManager with no tones and no file load attempted."""
+        obj = cls.__new__(cls)
+        obj.filepath = Path(filepath)
+        obj._tones = []
+        return obj
 
     def save(self) -> None:
         with open(self.filepath, "w", encoding="utf-8") as f:

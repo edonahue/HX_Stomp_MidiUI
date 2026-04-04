@@ -1,0 +1,17 @@
+Package: hlx-generator
+Version: ${VERSION}
+Architecture: ${ARCH}
+Maintainer: edonahue <edonahue@users.noreply.github.com>
+Depends: libasound2, libgl1
+Recommends: libjack-jackd2-0
+Section: sound
+Priority: optional
+Description: HLX Generator — AI Preset Builder & MIDI Soundboard for Line 6 HX Stomp
+ A dark-themed desktop application that combines a MIDI soundboard for the
+ Line 6 HX Stomp guitar processor with an AI-powered preset builder.
+ .
+ Features:
+  - One-click tone activation via MIDI Program Change / Bank Select
+  - Snapshot, tuner, tap tempo, looper, and expression pedal control
+  - AI tone generation via Anthropic Claude, OpenAI GPT, or Google Gemini
+  - Preset catalog and export to .hlx format
