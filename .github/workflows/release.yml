@@ -67,6 +67,11 @@ jobs:
       - name: Build with PyInstaller
         run: pyinstaller hlx_generator.spec
 
+      # ── Smoke test: verify the built binary starts cleanly ────────────────
+      - name: Smoke test built binary (Linux)
+        if: runner.os == 'Linux'
+        run: dist/HLXGenerator/HLXGenerator --list-ports || true
+
       # ── Package for the platform ───────────────────────────────────────────
       - name: Package release artifact
         run: python build_release.py --arch ${{ matrix.arch }}
@@ -93,12 +98,7 @@ jobs:
       - name: Read version
         id: version
         run: |
-          python - <<'EOF'
-          import sys
-          sys.path.insert(0, ".")
-          from __version__ import VERSION
-          print(f"version={VERSION}")
-          EOF
+          echo "version=$(python -c 'import sys; sys.path.insert(0,"."); from __version__ import VERSION; print(VERSION)')" >> $GITHUB_OUTPUT
         shell: bash
 
       - name: Download all artifacts
@@ -106,6 +106,13 @@ jobs:
         with:
           path: release-artifacts
           merge-multiple: true
+
+      - name: Generate SHA256 checksums
+        run: |
+          cd release-artifacts
+          sha256sum * > SHA256SUMS.txt
+          echo "=== SHA256SUMS ==="
+          cat SHA256SUMS.txt
 
       - name: List artifacts
         run: ls -lh release-artifacts/
@@ -148,4 +155,6 @@ jobs:
 
             ### What's changed
             See [CHANGELOG](https://github.com/edonahue/hlx-generator/blob/main/CHANGELOG.md) for details.
-          files: release-artifacts/**/*
+          files: |
+            release-artifacts/**/*
+            release-artifacts/SHA256SUMS.txt

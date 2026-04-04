@@ -34,6 +34,8 @@ from midi_interface import (
     CC_BANK_MSB, CC_BANK_LSB, CC_EXP1, CC_EXP2,
     CC_FS1, CC_FS7, CC_LOOP_REC, CC_LOOP_PLAY, CC_TUNER, CC_SNAPSHOT,
     SNAPSHOT_NEXT, SNAPSHOT_PREV, _FS_CC,
+    CC_EXP_TOE, CC_LOOP_ONCE, CC_LOOP_UNDO, CC_TAP_TEMPO,
+    CC_LOOP_REV, CC_LOOP_HALF, CC_LOOP_ONOFF,
 )
 
 # ---------------------------------------------------------------------------
@@ -448,6 +450,167 @@ class TestLoadSaveConfig(unittest.TestCase):
                 save_config({})
                 result = load_config()
         self.assertEqual(result, {})
+
+
+# ===========================================================================
+# Group L: Looper controls — exact CC values per HX Stomp MIDI spec
+# ===========================================================================
+
+def _looper_midi() -> tuple:
+    """Return (hxi, captured_list) — hxi with send_cc spied upon."""
+    hxi = HXStompMidi.__new__(HXStompMidi)
+    hxi._port = None
+    hxi._channel = 0
+    hxi._tuner_state = False
+    captured = []
+    hxi.send_cc = lambda cc, val: captured.append((cc, val))
+    return hxi, captured
+
+
+class TestLooperControls(unittest.TestCase):
+
+    def setUp(self):
+        self.midi, self.captured = _looper_midi()
+
+    def _assert_cc(self, cc: int, value: int):
+        self.assertEqual(len(self.captured), 1,
+                         f"Expected 1 CC message, got {self.captured}")
+        self.assertEqual(self.captured[0], (cc, value))
+
+    # ── Record / Overdub (CC 60) ─────────────────────────────────────────
+
+    def test_looper_record_sends_cc60_127(self):
+        self.midi.looper_record()
+        self._assert_cc(CC_LOOP_REC, 127)
+
+    def test_looper_overdub_sends_cc60_0(self):
+        self.midi.looper_overdub()
+        self._assert_cc(CC_LOOP_REC, 0)
+
+    # ── Play / Stop (CC 61) ──────────────────────────────────────────────
+
+    def test_looper_play_sends_cc61_127(self):
+        self.midi.looper_play()
+        self._assert_cc(CC_LOOP_PLAY, 127)
+
+    def test_looper_stop_sends_cc61_0(self):
+        self.midi.looper_stop()
+        self._assert_cc(CC_LOOP_PLAY, 0)
+
+    # ── Play Once (CC 62) ────────────────────────────────────────────────
+
+    def test_looper_play_once_sends_cc62_127(self):
+        self.midi.looper_play_once()
+        self._assert_cc(CC_LOOP_ONCE, 127)
+
+    # ── Undo/Redo (CC 63) ────────────────────────────────────────────────
+
+    def test_looper_undo_redo_sends_cc63_127(self):
+        self.midi.looper_undo_redo()
+        self._assert_cc(CC_LOOP_UNDO, 127)
+
+    # ── Tap Tempo (CC 64) ────────────────────────────────────────────────
+
+    def test_tap_tempo_sends_cc64_127(self):
+        self.midi.tap_tempo()
+        self._assert_cc(CC_TAP_TEMPO, 127)
+
+    # ── Reverse (CC 65) ──────────────────────────────────────────────────
+
+    def test_looper_reverse_on_sends_cc65_127(self):
+        self.midi.looper_reverse(True)
+        self._assert_cc(CC_LOOP_REV, 127)
+
+    def test_looper_reverse_off_sends_cc65_0(self):
+        self.midi.looper_reverse(False)
+        self._assert_cc(CC_LOOP_REV, 0)
+
+    # ── Half Speed (CC 66) ───────────────────────────────────────────────
+
+    def test_looper_half_speed_on_sends_cc66_127(self):
+        self.midi.looper_half_speed(True)
+        self._assert_cc(CC_LOOP_HALF, 127)
+
+    def test_looper_half_speed_off_sends_cc66_0(self):
+        self.midi.looper_half_speed(False)
+        self._assert_cc(CC_LOOP_HALF, 0)
+
+    # ── Looper On/Off (CC 67) ────────────────────────────────────────────
+
+    def test_looper_enabled_on_sends_cc67_127(self):
+        self.midi.looper_enabled(True)
+        self._assert_cc(CC_LOOP_ONOFF, 127)
+
+    def test_looper_enabled_off_sends_cc67_0(self):
+        self.midi.looper_enabled(False)
+        self._assert_cc(CC_LOOP_ONOFF, 0)
+
+    # ── EXP Toe Switch (CC 59) ───────────────────────────────────────────
+
+    def test_set_exp_toe_on_sends_cc59_127(self):
+        self.midi.set_exp_toe(True)
+        self._assert_cc(CC_EXP_TOE, 127)
+
+    def test_set_exp_toe_off_sends_cc59_0(self):
+        self.midi.set_exp_toe(False)
+        self._assert_cc(CC_EXP_TOE, 0)
+
+
+# ===========================================================================
+# Group M: LLM provider factory
+# ===========================================================================
+
+from llm_generator import (
+    get_provider,
+    AnthropicProvider, OpenAIProvider, GeminiProvider, OllamaProvider,
+)
+
+
+class TestGetProvider(unittest.TestCase):
+
+    def test_default_is_anthropic(self):
+        provider = get_provider({})
+        self.assertIsInstance(provider, AnthropicProvider)
+
+    def test_anthropic_explicit(self):
+        provider = get_provider({"provider": "anthropic"})
+        self.assertIsInstance(provider, AnthropicProvider)
+
+    def test_openai(self):
+        provider = get_provider({"provider": "openai", "openai_api_key": "sk-x"})
+        self.assertIsInstance(provider, OpenAIProvider)
+
+    def test_gemini(self):
+        provider = get_provider({"provider": "gemini", "gemini_api_key": "key"})
+        self.assertIsInstance(provider, GeminiProvider)
+
+    def test_ollama(self):
+        provider = get_provider({"provider": "ollama"})
+        self.assertIsInstance(provider, OllamaProvider)
+
+    def test_unknown_provider_falls_back_to_anthropic(self):
+        provider = get_provider({"provider": "nonexistent_provider"})
+        self.assertIsInstance(provider, AnthropicProvider)
+
+    def test_api_key_passed_through(self):
+        provider = get_provider({"provider": "openai", "openai_api_key": "sk-test-123"})
+        self.assertEqual(provider.api_key, "sk-test-123")
+
+    def test_model_override(self):
+        provider = get_provider({
+            "provider": "anthropic",
+            "anthropic_model": "claude-opus-4-6",
+        })
+        self.assertEqual(provider.model, "claude-opus-4-6")
+
+    def test_default_model_used_when_not_in_config(self):
+        provider = get_provider({"provider": "anthropic"})
+        self.assertEqual(provider.model, AnthropicProvider.default_model)
+
+    def test_ollama_no_api_key_required(self):
+        # OllamaProvider should work with empty api_key
+        provider = get_provider({"provider": "ollama"})
+        self.assertEqual(provider.api_key, "")
 
 
 if __name__ == "__main__":
