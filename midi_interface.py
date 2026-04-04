@@ -15,7 +15,10 @@ Key MIDI messages used:
   - Effect Bypass    : CC 49-54 (FS1-FS6), value 0 = bypass, 127 = engage
 """
 
+import logging
 import mido
+
+logger = logging.getLogger(__name__)
 
 
 # HX Stomp MIDI CC numbers
@@ -98,7 +101,7 @@ class HXStompMidi:
             )
         self._port = mido.open_output(match)
         self._port_name = match
-        print(f"[HXStomp] Connected to: {match}")
+        logger.info("Connected to: %s", match)
 
     def connect_first_available(self) -> str:
         """Connect to the first available MIDI output port. Returns port name."""
@@ -161,7 +164,7 @@ class HXStompMidi:
         self.send_cc(CC_BANK_MSB, bank_msb)
         self.send_cc(CC_BANK_LSB, bank_lsb)
         self.send_program_change(preset)
-        print(f"[HXStomp] Preset → bank({bank_msb},{bank_lsb}) PC {preset}")
+        logger.debug("Preset → bank(%d,%d) PC %d", bank_msb, bank_lsb, preset)
 
     def select_snapshot(self, snapshot: int) -> None:
         """
@@ -171,7 +174,7 @@ class HXStompMidi:
         if not 0 <= snapshot <= 7:
             raise ValueError(f"Snapshot must be 0-7, got {snapshot}")
         self.send_cc(CC_SNAPSHOT, snapshot)
-        print(f"[HXStomp] Snapshot → {snapshot + 1}")
+        logger.debug("Snapshot → %d", snapshot + 1)
 
     def select_preset_and_snapshot(
         self,

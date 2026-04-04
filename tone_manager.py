@@ -19,9 +19,12 @@ A tone definition (dict / JSON):
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -51,7 +54,7 @@ class Tone:
 
     @classmethod
     def from_dict(cls, d: dict) -> "Tone":
-        return cls(
+        tone = cls(
             name     = d["name"],
             preset   = int(d["preset"]),
             snapshot = int(d.get("snapshot", 0)),
@@ -60,6 +63,11 @@ class Tone:
             color    = d.get("color", "#4A90D9"),
             category = d.get("category"),
         )
+        try:
+            tone.validate()
+        except ValueError as e:
+            raise ValueError(f"Invalid tone '{tone.name}': {e}") from e
+        return tone
 
 
 class ToneManager:
@@ -90,19 +98,49 @@ class ToneManager:
             raise ValueError(f"A tone named '{tone.name}' already exists.")
         self._tones.append(tone)
 
-    def update(self, tone: Tone) -> None:
+    def update(self, tone: Tone, old_name: str | None = None) -> None:
         tone.validate()
+        search_name = old_name if old_name is not None else tone.name
+        # If renaming, ensure the new name isn't already taken by another tone
+        if old_name and tone.name != old_name:
+            if any(t.name == tone.name for t in self._tones):
+                raise ValueError(f"A tone named '{tone.name}' already exists.")
         for i, t in enumerate(self._tones):
-            if t.name == tone.name:
+            if t.name == search_name:
                 self._tones[i] = tone
                 return
-        raise KeyError(f"No tone named '{tone.name}' found.")
+        raise KeyError(f"No tone named '{search_name}' found.")
 
     def remove(self, name: str) -> None:
         before = len(self._tones)
         self._tones = [t for t in self._tones if t.name != name]
         if len(self._tones) == before:
             raise KeyError(f"No tone named '{name}' found.")
+
+    def move(self, name: str, direction: int) -> None:
+        """Move a tone up (direction=-1) or down (direction=+1) within its category.
+
+        Only swaps with adjacent tones in the same category; does not cross
+        category boundaries.
+        """
+        tone = self.get(name)
+        if tone is None:
+            raise KeyError(f"No tone named '{name}' found.")
+        cat = tone.category or "Uncategorized"
+        # Build list of indices for tones in the same category (preserving global order)
+        cat_indices = [i for i, t in enumerate(self._tones)
+                       if (t.category or "Uncategorized") == cat]
+        local_pos = cat_indices.index(
+            next(i for i, t in enumerate(self._tones) if t.name == name)
+        )
+        target_local = local_pos + direction
+        if not (0 <= target_local < len(cat_indices)):
+            return  # Already at boundary; nothing to do
+        global_a = cat_indices[local_pos]
+        global_b = cat_indices[target_local]
+        self._tones[global_a], self._tones[global_b] = (
+            self._tones[global_b], self._tones[global_a]
+        )
 
     def categories(self) -> list[str]:
         seen, cats = set(), []
@@ -128,12 +166,12 @@ class ToneManager:
         with open(self.filepath, "r", encoding="utf-8") as f:
             data = json.load(f)
         self._tones = [Tone.from_dict(d) for d in data]
-        print(f"[ToneManager] Loaded {len(self._tones)} tones from {self.filepath}")
+        logger.info("Loaded %d tones from %s", len(self._tones), self.filepath)
 
     def save(self) -> None:
         with open(self.filepath, "w", encoding="utf-8") as f:
             json.dump([t.to_dict() for t in self._tones], f, indent=2)
-        print(f"[ToneManager] Saved {len(self._tones)} tones to {self.filepath}")
+        logger.info("Saved %d tones to %s", len(self._tones), self.filepath)
 
     def reload(self) -> None:
         self.load()

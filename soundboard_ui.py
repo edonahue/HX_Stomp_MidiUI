@@ -172,7 +172,7 @@ class ToneDialog(ctk.CTkToplevel):
         fields = [
             ("Name",           "name",     tone.name),
             ("Preset (0–127)", "preset",   str(tone.preset)),
-            ("Snapshot (0–7)", "snapshot", str(tone.snapshot)),
+            ("Snapshot (0–2)", "snapshot", str(tone.snapshot)),
             ("Bank MSB",       "bank_msb", str(tone.bank_msb)),
             ("Bank LSB",       "bank_lsb", str(tone.bank_lsb)),
             ("Category",       "category", tone.category or ""),
@@ -251,11 +251,13 @@ class SoundboardApp(ctk.CTk):
         self.title("HX Stomp Soundboard")
         self.minsize(600, 480)
 
-        self._midi   = HXStompMidi()
-        self._tones  = ToneManager(presets_file)
+        self._midi         = HXStompMidi()
+        self._tones        = ToneManager(presets_file)
         self._active: Optional[str] = None
-        self._cols   = 4
+        self._focused: Optional[str] = None   # keyboard-focused tone (not yet activated)
+        self._cols         = 4
         self._card_frames: dict[str, ctk.CTkFrame] = {}  # name → wrapper frame
+        self._tuner_state: bool = False
 
         self._build_ui()
         self._render_tones()
@@ -268,6 +270,7 @@ class SoundboardApp(ctk.CTk):
     def _build_ui(self) -> None:
         self._build_menu()
         self._build_toolbar()
+        self._build_bypass_panel()
         self._build_grid()
         self._build_statusbar()
 
@@ -312,14 +315,16 @@ class SoundboardApp(ctk.CTk):
         midi_menu.add_cascade(label="Channel", menu=chan_menu)
         midi_menu.add_separator()
         midi_menu.add_command(label="🎵  Toggle Tuner",  command=self._toggle_tuner)
+        midi_menu.add_command(label="🎛  FS Bypass Panel", command=self._toggle_bypass_panel)
         menubar.add_cascade(label="MIDI", menu=midi_menu)
 
         # Tones
         tones_menu = tk.Menu(menubar, tearoff=0,
                              bg="#2b2b2b", fg=_TEXT_BRIGHT,
                              activebackground=_ACCENT, activeforeground="#ffffff")
-        tones_menu.add_command(label="⊕  Add Tone",     command=self._add_tone)
-        tones_menu.add_command(label="✏  Edit Selected", command=self._edit_tone)
+        tones_menu.add_command(label="⊕  Add Tone",        command=self._add_tone)
+        tones_menu.add_command(label="✏  Edit Selected",   command=self._edit_tone)
+        tones_menu.add_command(label="⧉  Duplicate Selected", command=self._duplicate_tone)
         tones_menu.add_command(label="🗑  Remove Selected", command=self._remove_tone)
         menubar.add_cascade(label="Tones", menu=tones_menu)
 
@@ -328,6 +333,13 @@ class SoundboardApp(ctk.CTk):
         # Keyboard shortcuts
         self.bind_all("<Control-s>", lambda _: self._save())
         self.bind_all("<Control-r>", lambda _: self._reload())
+        # Number keys 1–9 activate tone at that display position
+        for n in range(1, 10):
+            self.bind_all(str(n), lambda e, i=n: self._activate_by_index(i - 1))
+        # Arrow keys navigate focus; Enter activates the focused tone
+        self.bind_all("<Up>",    lambda _: self._kb_navigate(-1))
+        self.bind_all("<Down>",  lambda _: self._kb_navigate(+1))
+        self.bind_all("<Return>", lambda _: self._kb_activate())
 
     # ---- Toolbar -----------------------------------------------------
 
@@ -345,18 +357,104 @@ class SoundboardApp(ctk.CTk):
             corner_radius = 6,
         )
 
-        ctk.CTkButton(toolbar, text="⊕  Add",    width=90,
-                      command=self._add_tone,    **btn_opts).pack(
+        ctk.CTkButton(toolbar, text="⊕  Add",       width=90,
+                      command=self._add_tone,       **btn_opts).pack(
             side="left", padx=(8, 2), pady=6)
-        ctk.CTkButton(toolbar, text="✏  Edit",   width=90,
-                      command=self._edit_tone,   **btn_opts).pack(
+        ctk.CTkButton(toolbar, text="✏  Edit",      width=90,
+                      command=self._edit_tone,      **btn_opts).pack(
             side="left", padx=2,      pady=6)
-        ctk.CTkButton(toolbar, text="🗑  Remove", width=100,
-                      command=self._remove_tone, **btn_opts).pack(
+        ctk.CTkButton(toolbar, text="⧉  Duplicate", width=105,
+                      command=self._duplicate_tone, **btn_opts).pack(
             side="left", padx=2,      pady=6)
-        ctk.CTkButton(toolbar, text="↺  Reload", width=90,
-                      command=self._reload,      **btn_opts).pack(
+        ctk.CTkButton(toolbar, text="🗑  Remove",    width=100,
+                      command=self._remove_tone,    **btn_opts).pack(
             side="left", padx=2,      pady=6)
+        ctk.CTkButton(toolbar, text="↑",            width=36,
+                      command=lambda: self._move_tone(-1), **btn_opts).pack(
+            side="left", padx=2,      pady=6)
+        ctk.CTkButton(toolbar, text="↓",            width=36,
+                      command=lambda: self._move_tone(+1), **btn_opts).pack(
+            side="left", padx=2,      pady=6)
+        ctk.CTkButton(toolbar, text="↺  Reload",    width=90,
+                      command=self._reload,         **btn_opts).pack(
+            side="left", padx=2,      pady=6)
+
+    # ---- Effect bypass panel -----------------------------------------
+
+    def _build_bypass_panel(self) -> None:
+        """Collapsible panel with 6 footswitch bypass toggles (FS1–FS6)."""
+        self._bypass_states: list[bool] = [False] * 6   # False = engaged, True = bypassed
+        self._bypass_panel_visible: bool = False
+
+        # Toggle button in toolbar area (added after toolbar is built)
+        self._bypass_toggle_btn = ctk.CTkButton(
+            self,
+            text="FS Bypass ▾",
+            height=26,
+            fg_color="transparent",
+            hover_color="#333333",
+            text_color=_TEXT_DIM,
+            corner_radius=4,
+            font=ctk.CTkFont(size=11),
+            command=self._toggle_bypass_panel,
+        )
+        # Don't pack yet — will be shown inline; skip for now
+
+        self._bypass_frame = ctk.CTkFrame(self, fg_color="#181818",
+                                           height=50, corner_radius=0)
+        self._bypass_frame.pack_propagate(False)
+        # Build 6 FS toggle buttons inside
+        self._fs_btns: list[ctk.CTkButton] = []
+        for fs in range(1, 7):
+            btn = ctk.CTkButton(
+                self._bypass_frame,
+                text=f"FS{fs}\nON",
+                width=72,
+                height=38,
+                fg_color="#2a6a2a",
+                hover_color="#235923",
+                text_color="#ccffcc",
+                corner_radius=6,
+                font=ctk.CTkFont(size=10, weight="bold"),
+                command=lambda f=fs: self._toggle_fs_bypass(f),
+            )
+            btn.pack(side="left", padx=(8 if fs == 1 else 4, 4), pady=6)
+            self._fs_btns.append(btn)
+
+        # Add a "FS Bypass" toggle button to the MIDI menu
+        # (wired via _toggle_bypass_panel)
+
+    def _toggle_bypass_panel(self) -> None:
+        self._bypass_panel_visible = not self._bypass_panel_visible
+        if self._bypass_panel_visible:
+            self._bypass_frame.pack(fill="x", side="top", after=self._scroll)
+            # re-pack to place it between toolbar and grid
+            self._bypass_frame.pack_forget()
+            # Insert between toolbar and scrollable frame by re-ordering packs
+            # Easiest approach: use place geometry on a known anchor
+            self._bypass_frame.pack(fill="x", side="top",
+                                    before=self._scroll)
+        else:
+            self._bypass_frame.pack_forget()
+
+    def _toggle_fs_bypass(self, footswitch: int) -> None:
+        if not self._midi.is_connected:
+            messagebox.showwarning("Not connected",
+                                   "Connect via MIDI → Connect… first.")
+            return
+        idx = footswitch - 1
+        self._bypass_states[idx] = not self._bypass_states[idx]
+        bypassed = self._bypass_states[idx]
+        self._midi.set_effect_bypass(footswitch, bypassed)
+        btn = self._fs_btns[idx]
+        if bypassed:
+            btn.configure(text=f"FS{footswitch}\nBYP",
+                          fg_color="#6a2a2a", hover_color="#592323",
+                          text_color="#ffcccc")
+        else:
+            btn.configure(text=f"FS{footswitch}\nON",
+                          fg_color="#2a6a2a", hover_color="#235923",
+                          text_color="#ccffcc")
 
     # ---- Tone grid ---------------------------------------------------
 
@@ -442,7 +540,8 @@ class SoundboardApp(ctk.CTk):
 
     def _render_card(self, tone: Tone, row: int, col: int) -> None:
         is_active    = tone.name == self._active
-        border_color = _ACCENT if is_active else "#1c1c1c"
+        is_focused   = tone.name == self._focused and not is_active
+        border_color = _ACCENT if is_active else ("#555555" if is_focused else "#1c1c1c")
         fg           = _contrast_color(tone.color)
         sub_fg       = _muted_color(fg, tone.color, alpha=0.55)
         hover_color  = _adjust_brightness(tone.color)
@@ -502,8 +601,9 @@ class SoundboardApp(ctk.CTk):
         ctx = tk.Menu(self, tearoff=0,
                       bg="#2b2b2b", fg=_TEXT_BRIGHT,
                       activebackground=_ACCENT, activeforeground="#ffffff")
-        ctx.add_command(label="✏  Edit",   command=lambda t=tone: self._edit_tone(t))
-        ctx.add_command(label="🗑  Remove", command=lambda t=tone: self._remove_tone(t))
+        ctx.add_command(label="✏  Edit",      command=lambda t=tone: self._edit_tone(t))
+        ctx.add_command(label="⧉  Duplicate", command=lambda t=tone: self._duplicate_tone(t))
+        ctx.add_command(label="🗑  Remove",    command=lambda t=tone: self._remove_tone(t))
 
         def show_ctx(event, menu=ctx, t=tone):
             self._active = t.name
@@ -575,6 +675,7 @@ class SoundboardApp(ctk.CTk):
 
         old = self._active
         self._active = tone.name
+        self._focused = tone.name
         self._active_lbl.configure(
             text=f"{tone.name}  ·  Bank {tone.bank_lsb}  PC {tone.preset}  S{tone.snapshot + 1}",
             text_color=_TEXT_BRIGHT,
@@ -587,6 +688,27 @@ class SoundboardApp(ctk.CTk):
 
     def _add_tone(self) -> None:
         dlg = ToneDialog(self, title="Add Tone")
+        self.wait_window(dlg)
+        if dlg.result:
+            try:
+                self._tones.add(dlg.result)
+                self._tones.save()
+                self._render_tones()
+            except ValueError as e:
+                messagebox.showerror("Error", str(e))
+
+    def _duplicate_tone(self, tone: Tone | None = None) -> None:
+        name = tone.name if tone else self._active
+        if not name:
+            messagebox.showinfo("Select a tone",
+                                "Click a tone card first, or right-click one.")
+            return
+        existing = self._tones.get(name)
+        if not existing:
+            return
+        import dataclasses
+        copy = dataclasses.replace(existing, name=f"{existing.name} Copy")
+        dlg = ToneDialog(self, title="Duplicate Tone", tone=copy)
         self.wait_window(dlg)
         if dlg.result:
             try:
@@ -609,7 +731,7 @@ class SoundboardApp(ctk.CTk):
         self.wait_window(dlg)
         if dlg.result:
             try:
-                self._tones.update(dlg.result)
+                self._tones.update(dlg.result, old_name=name)
                 self._tones.save()
                 if self._active == name:
                     self._active = dlg.result.name
@@ -636,6 +758,58 @@ class SoundboardApp(ctk.CTk):
         except KeyError as e:
             messagebox.showerror("Error", str(e))
 
+    def _move_tone(self, direction: int) -> None:
+        if not self._active:
+            messagebox.showinfo("Select a tone",
+                                "Click a tone card first to select it.")
+            return
+        try:
+            self._tones.move(self._active, direction)
+            self._tones.save()
+            self._render_tones()
+        except KeyError as e:
+            messagebox.showerror("Error", str(e))
+
+    # ------------------------------------------------------------------
+    # Keyboard navigation
+    # ------------------------------------------------------------------
+
+    def _all_tones_flat(self) -> list[Tone]:
+        """Return all tones in display order (category groups, insertion order within)."""
+        result = []
+        for tones in self._tones.tones_by_category().values():
+            result.extend(tones)
+        return result
+
+    def _activate_by_index(self, index: int) -> None:
+        flat = self._all_tones_flat()
+        if 0 <= index < len(flat):
+            tone = flat[index]
+            self._focused = tone.name
+            self._activate_tone(tone)
+
+    def _kb_navigate(self, direction: int) -> None:
+        flat = self._all_tones_flat()
+        if not flat:
+            return
+        names = [t.name for t in flat]
+        current = self._focused or self._active
+        if current and current in names:
+            idx = names.index(current)
+        else:
+            idx = -1 if direction > 0 else len(names)
+        new_idx = max(0, min(len(names) - 1, idx + direction))
+        self._focused = names[new_idx]
+        # Highlight the focused card without sending MIDI
+        self._render_tones()
+
+    def _kb_activate(self) -> None:
+        if not self._focused:
+            return
+        tone = self._tones.get(self._focused)
+        if tone:
+            self._activate_tone(tone)
+
     def _reload(self) -> None:
         self._tones.reload()
         self._render_tones()
@@ -647,15 +821,12 @@ class SoundboardApp(ctk.CTk):
     # Tuner
     # ------------------------------------------------------------------
 
-    def _tuner_on(self) -> bool:
-        return getattr(self, "_tuner_state", False)
-
     def _toggle_tuner(self) -> None:
         if not self._midi.is_connected:
             messagebox.showwarning("Not connected",
                                    "Connect via MIDI → Connect… first.")
             return
-        self._tuner_state = not self._tuner_on()
+        self._tuner_state = not self._tuner_state
         self._midi.set_tuner(self._tuner_state)
         state_str = "ON" if self._tuner_state else "OFF"
         self._active_lbl.configure(

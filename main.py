@@ -18,11 +18,14 @@ Optional flags
 """
 
 import argparse
+import logging
 import sys
 
 import soundboard_ui
 from midi_interface import HXStompMidi
 from soundboard_ui import SoundboardApp
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -55,7 +58,7 @@ class MockHXStompMidi:
     def connect(self, port_name: str) -> None:
         self._connected = True
         self._port_name = port_name
-        print(f"[MockMIDI] Connected → {port_name}")
+        logger.info("[MockMIDI] Connected → %s", port_name)
 
     def connect_first_available(self) -> str:
         ports = self.list_output_ports()
@@ -64,7 +67,7 @@ class MockHXStompMidi:
 
     def disconnect(self) -> None:
         if self._connected:
-            print("[MockMIDI] Disconnected")
+            logger.info("[MockMIDI] Disconnected")
         self._connected = False
         self._port_name = ""
 
@@ -79,17 +82,17 @@ class MockHXStompMidi:
     # MIDI output ------------------------------------------------------
 
     def send_cc(self, control: int, value: int) -> None:
-        print(f"[MockMIDI] CC  ch={self.channel + 1}  cc={control}  val={value}")
+        logger.debug("[MockMIDI] CC  ch=%d  cc=%d  val=%d", self.channel + 1, control, value)
 
     def send_program_change(self, program: int) -> None:
-        print(f"[MockMIDI] PC  ch={self.channel + 1}  program={program}")
+        logger.debug("[MockMIDI] PC  ch=%d  program=%d", self.channel + 1, program)
 
     def select_preset(self, preset: int, bank_msb: int = 0,
                       bank_lsb: int = 0) -> None:
-        print(f"[MockMIDI] Preset → bank({bank_msb},{bank_lsb})  PC {preset}")
+        logger.info("[MockMIDI] Preset → bank(%d,%d)  PC %d", bank_msb, bank_lsb, preset)
 
     def select_snapshot(self, snapshot: int) -> None:
-        print(f"[MockMIDI] Snapshot → {snapshot + 1}")
+        logger.info("[MockMIDI] Snapshot → %d", snapshot + 1)
 
     def select_preset_and_snapshot(self, preset: int, snapshot: int = 0,
                                     bank_msb: int = 0, bank_lsb: int = 0) -> None:
@@ -97,11 +100,11 @@ class MockHXStompMidi:
         self.select_snapshot(snapshot)
 
     def set_tuner(self, on: bool) -> None:
-        print(f"[MockMIDI] Tuner {'ON' if on else 'OFF'}")
+        logger.info("[MockMIDI] Tuner %s", "ON" if on else "OFF")
 
     def set_effect_bypass(self, footswitch: int, bypassed: bool) -> None:
         state = "bypass" if bypassed else "engage"
-        print(f"[MockMIDI] FS{footswitch} → {state}")
+        logger.info("[MockMIDI] FS%d → %s", footswitch, state)
 
     def __enter__(self):  return self
     def __exit__(self, *_): self.disconnect()
@@ -113,6 +116,11 @@ class MockHXStompMidi:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="HX Stomp MIDI Soundboard")
+    parser.add_argument(
+        "--log-level", default="INFO",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        help="Logging verbosity (default: INFO)",
+    )
     parser.add_argument(
         "--presets", default="presets.json",
         help="Path to tone definitions JSON file (default: presets.json)",
@@ -127,6 +135,11 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    logging.basicConfig(
+        level=getattr(logging, args.log_level),
+        format="%(levelname)s [%(name)s] %(message)s",
+    )
+
     if args.list_ports:
         ports = HXStompMidi.list_output_ports()
         if ports:
@@ -140,7 +153,7 @@ def main() -> None:
     if args.mock_midi:
         # Patch the HXStompMidi class used inside soundboard_ui at import time
         soundboard_ui.HXStompMidi = MockHXStompMidi
-        print("[MockMIDI] Mock MIDI backend active — no hardware required.")
+        logger.info("Mock MIDI backend active — no hardware required.")
 
     app = SoundboardApp(presets_file=args.presets)
     app.mainloop()
