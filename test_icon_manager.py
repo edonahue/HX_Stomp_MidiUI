@@ -38,21 +38,23 @@ for _mod_name in ("tkinter", "tkinter.messagebox", "tkinter.filedialog",
     if _mod_name not in sys.modules:
         sys.modules[_mod_name] = _make_ui_module(_mod_name)
 
-# CTkImage stub: stores the constructor args so tests can inspect them
-class _CTkImageStub(_UIStub):
+# CTkImage stub: stores the constructor args so tests can inspect them.
+# Named "CTkImage" so __class__.__name__ matches the real customtkinter class
+# and get_icon() test assertions on class name pass in headless environments.
+class CTkImage(_UIStub):
     def __init__(self, *a, **kw):
         self._args = a
         self._kwargs = kw
 
 # CTkButton stub: stores kwargs so tests can inspect text= and image=
-class _CTkButtonStub(_UIStub):
+class CTkButton(_UIStub):
     def __init__(self, *a, **kw):
         self._args = a
         self._kwargs = kw
 
 _ctk_stub = _make_ui_module("customtkinter")
-_ctk_stub.CTkImage = _CTkImageStub
-_ctk_stub.CTkButton = _CTkButtonStub
+_ctk_stub.CTkImage = CTkImage
+_ctk_stub.CTkButton = CTkButton
 sys.modules["customtkinter"] = _ctk_stub
 
 # ---------------------------------------------------------------------------
