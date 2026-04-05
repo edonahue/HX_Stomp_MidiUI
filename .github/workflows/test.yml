@@ -10,6 +10,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.9", "3.11", "3.12"]
 
@@ -21,10 +22,17 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install system MIDI libraries (required by python-rtmidi)
-        run: sudo apt-get update && sudo apt-get install -y libasound2-dev libjack-dev
+        run: |
+          sudo apt-get update
+          # Use libjack-jackd2-dev (JACK2); ubuntu-latest ships JACK2 so libjack-dev
+          # (JACK1) conflicts with the already-present libjack-jackd2-dev package.
+          sudo apt-get install -y --no-install-recommends \
+            libasound2-dev libjack-jackd2-dev
 
       - name: Install dependencies
-        run: pip install -r requirements.txt
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
 
       - name: Validate PyInstaller spec syntax
         run: |
